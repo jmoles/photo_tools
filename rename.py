@@ -11,18 +11,18 @@ IMG_RE = "^img_([0-9]{4})\.(cr2|jpg|jpeg)"
 OUT_RE = "^([0-9]{8})_img_([0-9]{4})\.(cr2|jpg|jpeg)"
 XMP_EXT = "xmp"
 
-def rename_xmp(xmp_path, new_xmp_path, cr2_path, new_cr2_path):
+def rename_xmp(xmp_path, new_xmp_path, img_path, new_img_path):
     """ For a given old_name, rename the xmp file and instnaces 
         within XMP file to new_name.
     """
 
-    old_cr2_name_only = os.path.split(cr2_path)[-1].strip()
-    new_cr2_name_only = os.path.split(new_cr2_path)[-1].strip()
+    old_img_name_only = os.path.split(img_path)[-1].strip()
+    new_img_name_only = os.path.split(new_img_path)[-1].strip()
 
     with open(xmp_path, 'r') as f:
         filedata = f.read()
 
-    filedata = filedata.replace(old_cr2_name_only, new_cr2_name_only)
+    filedata = filedata.replace(old_img_name_only, new_img_name_only)
 
     with open(new_xmp_path, 'w') as f:
         f.write(filedata)
@@ -64,11 +64,15 @@ def process_file(path, move_xmp=True, dry_run=True):
     xmp_full = find_xmp(path)
 
     # Attempt to extract the image number from the filename.
+    # This assumes filename is in the canon naming convention.
     img_re_m = re.match(IMG_RE, curr_name, flags=re.IGNORECASE)
     try:
         img_num = img_re_m.group(1)
     except IndexError:
-        print("Error! No Image number found!")
+        print("Error! No Image number found on {}!".format(curr_name))
+        return
+    except AttributeError:
+        # Doesn't match the format....just skip it.
         return
 
     # Extract the EXIF information of date and convert it to a datetime.
