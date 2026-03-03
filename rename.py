@@ -1,134 +1,103 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#   "exifread",
+# ]
+# ///
+
 import argparse
 import datetime
-import os
-import re
+from pathlib import Path
 
 import exifread
 
-PHOTO_EXTS = ['cr2', 'jpg', 'jpeg']
-IMG_RE = "^img_([0-9]{4})\.(cr2|jpg|jpeg)"
-# TODO: Is this correct?
-OUT_RE = "^([0-9]{8})_img_([0-9]{4})\.(cr2|jpg|jpeg)"
-XMP_EXT = "xmp"
+PHOTO_EXTS = {
+    'cr2', 'cr3',   # Canon RAW
+    'nef',           # Nikon RAW
+    'arw',           # Sony RAW
+    'raf',           # Fujifilm RAW
+    'orf',           # Olympus RAW
+    'rw2',           # Panasonic RAW
+    'dng',           # Adobe DNG
+    'jpg', 'jpeg',   # JPEG
+}
 
-def rename_xmp(xmp_path, new_xmp_path, img_path, new_img_path):
-    """ For a given old_name, rename the xmp file and instnaces 
-        within XMP file to new_name.
-    """
-
-    old_img_name_only = os.path.split(img_path)[-1].strip()
-    new_img_name_only = os.path.split(new_img_path)[-1].strip()
-
-    with open(xmp_path, 'r') as f:
-        filedata = f.read()
-
-    filedata = filedata.replace(old_img_name_only, new_img_name_only)
-
-    with open(new_xmp_path, 'w') as f:
-        f.write(filedata)
-
-    # Delete the old file if this successfully completed.
-    os.remove(xmp_path)
+XMP_EXT = 'xmp'
 
 
-def find_xmp(fpath):
-    """ For a given full path to file, fpath, find an XMP file next to it and 
-        return the name if found.
-    """
-
-    fdir, fname = os.path.split(fpath)
-    file_name, ext = os.path.splitext(fname)
-
-    xmp1 = os.path.join(fdir, "{}.{}".format(file_name, XMP_EXT.lower()))
-    xmp2 = os.path.join(fdir, "{}.{}".format(file_name, XMP_EXT.upper()))
-
-    if os.path.isfile(xmp1):
-        return xmp1
-    elif os.path.isfile(xmp2):
-        return xmp2
-
-    return None
-
-def process_file(path, move_xmp=True, dry_run=True):
-
-    # Verify the file looked at is indeed a file.
-    if not os.path.isfile(path):
-        print("Error! Provided path ({}) is not a file!".format(path))
-        return
-
-    # Determine the name and extension of the file itself.
-    _, ext = os.path.splitext(path)
-    ext = ext.lstrip(".").lower()
-    curr_name = os.path.split(path)[-1].strip()
-    curr_dir = os.path.split(path)[0]
-    xmp_full = find_xmp(path)
-
-    # Attempt to extract the image number from the filename.
-    # This assumes filename is in the canon naming convention.
-    img_re_m = re.match(IMG_RE, curr_name, flags=re.IGNORECASE)
-    try:
-        img_num = img_re_m.group(1)
-    except IndexError:
-        print("Error! No Image number found on {}!".format(curr_name))
-        return
-    except AttributeError:
-        # Doesn't match the format....just skip it.
-        return
-
-    # Extract the EXIF information of date and convert it to a datetime.
-    with open(path, 'rb') as f:
-        tags = exifread.process_file(f)
-    date = parse_date(str(tags["Image DateTime"]))
-
-
-    # Determine the new name for the file(s).
-    new_name = ("{}_img_{}".format(date.strftime("%Y%m%d"), img_num))
-    new_file_path = os.path.join(os.path.split(path)[0], "{}.{}".format(new_name, ext))
-    new_xmp_path = os.path.join(os.path.split(path)[0], "{}.{}".format(new_name, XMP_EXT))
-
-    # Rename the file and and perform rename on XMP.
-    if dry_run:
-        print("Rename: {} -> {}".format(os.path.realpath(path), new_file_path))
-        if xmp_full is not None:
-            print("Rename: {} -> {}".format(os.path.realpath(xmp_full), new_xmp_path))
-    else:
-        os.rename(os.path.realpath(path), new_file_path)
-        if xmp_full is not None:
-            rename_xmp(xmp_full, new_xmp_path, path, new_file_path)
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(
-            description="Renames photo files to desired convention.")
-    parser.add_argument('directory', type=str, help="Directory to work on.")
-    parser.add_argument('-n', 
-                        '--dry-run', 
-                        help="Directory to work on.", 
-                        action="store_true")
-
-    return parser.parse_args()
-
-def parse_date(date_str):
-    """ Takes a date_str in an EXIF format and converts it to a python 
-        datetime. 
-    """
+def parse_date(date_str: str) -> datetime.datetime:
     return datetime.datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
 
-def main():
+
+def find_xmp(path: Path) -> Path | None:
+    for candidate in [path.with_suffix('.xmp'), path.with_suffix('.XMP')]:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def rename_xmp(xmp_path: Path, new_xmp_path: Path, old_img_name: str, new_img_name: str) -> None:
+    content = xmp_path.read_text()
+    content = content.replace(old_img_name, new_img_name)
+    new_xmp_path.write_text(content)
+    xmp_path.unlink()
+
+
+def process_file(path: Path, tag: str, dry_run: bool = True) -> None:
+    if not path.is_file():
+        print(f"Error: {path} is not a file.")
+        return
+
+    ext = path.suffix.lstrip('.').lower()
+    original_stem = path.stem.lower().strip('_')
+    xmp_path = find_xmp(path)
+
+    with path.open('rb') as f:
+        tags = exifread.process_file(f, stop_tag='Image DateTime')
+
+    if 'Image DateTime' not in tags:
+        print(f"Warning: No EXIF date found in {path.name}, skipping.")
+        return
+
+    dt = parse_date(str(tags['Image DateTime']))
+    new_stem = f"{dt.strftime('%Y%m%d')}_{dt.strftime('%H%M%S')}_{tag}_{original_stem}"
+    new_path = path.with_name(f"{new_stem}.{ext}")
+    new_xmp_path = path.with_name(f"{new_stem}.{XMP_EXT}")
+
+    if dry_run:
+        print(f"Rename: {path.name} -> {new_path.name}")
+        if xmp_path:
+            print(f"Rename: {xmp_path.name} -> {new_xmp_path.name}")
+    else:
+        path.rename(new_path)
+        if xmp_path:
+            rename_xmp(xmp_path, new_xmp_path, path.name, new_path.name)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Renames photo files to a date/time/tag convention."
+    )
+    parser.add_argument('directory', type=str, help="Directory to process.")
+    parser.add_argument('tag', type=str, help="Tag to embed in filenames (e.g. 'liam06mo').")
+    parser.add_argument('-x', '--execute', action='store_true',
+                        help="Actually rename files (default is a dry-run preview).")
+    return parser.parse_args()
+
+
+def main() -> None:
     args = parse_args()
+    directory = Path(args.directory)
+    tag = args.tag.lower()
+    dry_run = not args.execute
 
-    files = os.listdir(path=args.directory)
+    if dry_run:
+        print("Dry run — no files will be changed. Pass -x to apply.\n")
 
-    for curr_file in files:
-        full_path = os.path.join(args.directory, curr_file)
-        if not os.path.isfile(full_path):
-            continue
-        root, ext = os.path.splitext(full_path)
-        ext = ext.lstrip('.').lower()
-        if ext in PHOTO_EXTS:
-            process_file(full_path, dry_run=args.dry_run)
+    for path in sorted(directory.iterdir()):
+        if path.is_file() and path.suffix.lstrip('.').lower() in PHOTO_EXTS:
+            process_file(path, tag=tag, dry_run=dry_run)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
-
