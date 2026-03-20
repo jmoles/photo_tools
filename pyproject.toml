@@ -1,0 +1,16 @@
+[project]
+name = "photo-tools"
+version = "0.2.0"
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]
+markers = [
+    "integration: requires exiftool installed and real filesystem I/O",
+]

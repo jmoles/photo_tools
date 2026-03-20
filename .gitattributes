@@ -1,0 +1,4 @@
+samples/*.CR2 filter=lfs diff=lfs merge=lfs -text
+samples/*.RAF filter=lfs diff=lfs merge=lfs -text
+samples/*.DNG filter=lfs diff=lfs merge=lfs -text
+samples/*.HEIC filter=lfs diff=lfs merge=lfs -text
