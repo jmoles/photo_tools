@@ -79,6 +79,17 @@ SKIP_NAMES: frozenset[str] = frozenset({
 
 EXIF_DATE_TAGS = ('DateTimeOriginal', 'CreateDate', 'ModifyDate')
 
+# Matches filenames already renamed by this toolchain: YYYYMMDD_HHMMSS_…
+_ALREADY_RENAMED_RE = re.compile(r'^\d{8}_\d{6}_')
+
+
+def _original_stem(stem: str) -> str:
+    """Strip YYYYMMDD_HHMMSS_ prefix from already-renamed files so it isn't doubled."""
+    if _ALREADY_RENAMED_RE.match(stem):
+        parts = stem.split('_', 2)
+        return parts[2] if len(parts) > 2 else stem
+    return stem
+
 # Filename date patterns — tried in order, first match wins.
 # Named groups: year, month, day; optionally hour, minute, second.
 _FILENAME_PATTERNS: list[re.Pattern] = [
@@ -291,7 +302,16 @@ def _find_ext(path: Path, *exts: str) -> Path | None:
 
 
 def find_xmp(path: Path) -> Path | None:
-    return _find_ext(path, 'xmp', 'XMP')
+    # photo.xmp (standard) or photo.jpg.xmp (Lightroom/darktable double-extension)
+    for candidate in [
+        path.with_suffix('.xmp'),
+        path.with_suffix('.XMP'),
+        path.parent / (path.name + '.xmp'),
+        path.parent / (path.name + '.XMP'),
+    ]:
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def find_pp3(path: Path) -> Path | None:
@@ -557,7 +577,7 @@ def process_file(path: Path, category: FileCategory, exif_data: dict, ctx: Proce
             dupe_dir = ctx.dest_root / 'dupes' / '_undated'
         dt   = date_result.dt   if date_result else datetime.datetime.fromtimestamp(path.stat().st_mtime)
         tier = date_result.tier if date_result else DateTier.MTIME
-        fname     = build_filename(dt, tier, ctx.tag, path.stem, path.suffix.lstrip('.'))
+        fname     = build_filename(dt, tier, ctx.tag, _original_stem(path.stem), path.suffix.lstrip('.'))
         dupe_dest = dupe_dir / fname
         log.info('DUPE     %s -> %s  (original: %s)', path, dupe_dest, existing)
         _do_move(path, dupe_dest, ctx.dry_run)
@@ -579,7 +599,7 @@ def process_file(path: Path, category: FileCategory, exif_data: dict, ctx: Proce
     # Build destination
     is_video = (category == FileCategory.VIDEO)
     d_dir    = dest_dir_for(date_result.dt, date_result.tier, ctx.dest_root, is_video)
-    fname    = build_filename(date_result.dt, date_result.tier, ctx.tag, path.stem, path.suffix.lstrip('.'))
+    fname    = build_filename(date_result.dt, date_result.tier, ctx.tag, _original_stem(path.stem), path.suffix.lstrip('.'))
     dest     = unique_dest(d_dir, fname, content_hash, ctx.claimed_dests)
 
     ctx.claimed_dests.add(str(dest))

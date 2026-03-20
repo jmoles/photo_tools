@@ -14,10 +14,12 @@ from consolidate import (
     _FILENAME_PATTERNS,
     _date_from_exif_dict,
     _date_from_filename,
+    _original_stem,
     _parse_exif_dt,
     build_filename,
     classify,
     dest_dir_for,
+    find_xmp,
     unique_dest,
     DateResult,
 )
@@ -269,3 +271,60 @@ class TestClassify:
     def test_db(self):        assert self._cls('thumbs.db')     == FileCategory.SKIP
     def test_no_ext(self):    assert self._cls('no_extension')  == FileCategory.SKIP
     def test_unknown_ext(self): assert self._cls('file.xyz123') == FileCategory.SKIP
+
+
+# ---------------------------------------------------------------------------
+# _original_stem — already-renamed prefix stripping
+# ---------------------------------------------------------------------------
+
+class TestOriginalStem:
+    def test_strips_date_time_prefix(self):
+        assert _original_stem('20230615_103022_liam06mo_img0042') == 'liam06mo_img0042'
+
+    def test_strips_date_time_no_tag(self):
+        assert _original_stem('20230615_103022_img0042') == 'img0042'
+
+    def test_leaves_plain_stem_unchanged(self):
+        assert _original_stem('IMG_0042') == 'IMG_0042'
+
+    def test_leaves_partial_match_unchanged(self):
+        # Only 6 digits after underscore — not a full timestamp
+        assert _original_stem('20230615_1030_img') == '20230615_1030_img'
+
+    def test_leaves_unrelated_stem_unchanged(self):
+        assert _original_stem('family_photo_2023') == 'family_photo_2023'
+
+
+# ---------------------------------------------------------------------------
+# find_xmp — double-extension sidecar discovery
+# ---------------------------------------------------------------------------
+
+class TestFindXmp:
+    def test_finds_standard_xmp(self, tmp_path):
+        img = tmp_path / 'photo.jpg'
+        img.touch()
+        xmp = tmp_path / 'photo.xmp'
+        xmp.touch()
+        assert find_xmp(img) == xmp
+
+    def test_finds_double_extension_xmp(self, tmp_path):
+        """Lightroom-style: photo.jpg.xmp alongside photo.jpg"""
+        img = tmp_path / 'photo.jpg'
+        img.touch()
+        xmp = tmp_path / 'photo.jpg.xmp'
+        xmp.touch()
+        assert find_xmp(img) == xmp
+
+    def test_prefers_standard_over_double_extension(self, tmp_path):
+        img = tmp_path / 'photo.jpg'
+        img.touch()
+        standard = tmp_path / 'photo.xmp'
+        standard.touch()
+        double = tmp_path / 'photo.jpg.xmp'
+        double.touch()
+        assert find_xmp(img) == standard
+
+    def test_returns_none_when_no_xmp(self, tmp_path):
+        img = tmp_path / 'photo.jpg'
+        img.touch()
+        assert find_xmp(img) is None
