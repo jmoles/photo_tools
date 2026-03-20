@@ -1,0 +1,12 @@
+# consolidate.py configuration
+# Copy this file to config.toml and fill in your paths.
+# CLI arguments always take precedence over values set here.
+
+[paths]
+source     = "/path/to/unorganised/photos"   # input directory (processed recursively)
+dest       = "/path/to/library"              # output root (YYYY/MM structure created here)
+hash_cache = "consolidate_cache.db"          # SQLite resume cache (relative or absolute)
+
+[options]
+batch_size = 500        # number of files per exiftool invocation
+tag        = ""         # optional label embedded in every filename (e.g. "vacation") — leave blank to omit

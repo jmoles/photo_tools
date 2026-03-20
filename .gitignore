@@ -123,3 +123,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# Personal config (paths, etc.) — use config.example.toml as a template
+config.toml
+
+# Runtime artifacts
+consolidate_*.log
+consolidate_cache.db
+.venv/
+

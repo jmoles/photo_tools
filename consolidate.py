@@ -18,6 +18,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import tomllib
 import logging
 import os
 import re
@@ -102,8 +103,6 @@ _FILENAME_PATTERNS: list[re.Pattern] = [
     ),
 ]
 
-DEFAULT_SOURCE = '/mnt/josh/photos/unorg'
-DEFAULT_DEST   = '/mnt/josh/photos'
 DEFAULT_CACHE  = 'consolidate_cache.db'
 DEFAULT_BATCH  = 500
 
@@ -629,27 +628,55 @@ def setup_logging(log_path: str | None) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Config file loading
+# ---------------------------------------------------------------------------
+
+_CONFIG_FILE = Path('config.toml')
+
+
+def _load_config(path: Path = _CONFIG_FILE) -> dict:
+    """Load config.toml if present; return empty dict if not found."""
+    if not path.exists():
+        return {}
+    with path.open('rb') as f:
+        return tomllib.load(f)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
 def parse_args() -> argparse.Namespace:
+    cfg = _load_config()
+    paths   = cfg.get('paths',   {})
+    options = cfg.get('options', {})
+
     p = argparse.ArgumentParser(
-        description='Consolidate and organise a photo library by EXIF date.'
+        description='Consolidate and organise a photo library by EXIF date.',
+        epilog='Settings in config.toml are used as defaults; CLI args override them.',
     )
-    p.add_argument('--source',     default=DEFAULT_SOURCE,
-                   help='Source directory (default: %(default)s)')
-    p.add_argument('--dest',       default=DEFAULT_DEST,
-                   help='Destination root (default: %(default)s)')
+    p.add_argument('--source',
+                   default=paths.get('source'),
+                   help='Source directory')
+    p.add_argument('--dest',
+                   default=paths.get('dest'),
+                   help='Destination root')
     p.add_argument('--tag',
+                   default=options.get('tag') or None,
                    help='Optional tag embedded in filenames')
     p.add_argument('--execute',    action='store_true',
                    help='Apply changes (default: dry-run)')
-    p.add_argument('--hash-cache', default=DEFAULT_CACHE,
+    p.add_argument('--hash-cache',
+                   default=paths.get('hash_cache', DEFAULT_CACHE),
                    help='SQLite cache path (default: %(default)s)')
-    p.add_argument('--batch-size', default=DEFAULT_BATCH, type=int,
+    p.add_argument('--batch-size',
+                   default=options.get('batch_size', DEFAULT_BATCH), type=int,
                    help='exiftool batch size (default: %(default)s)')
     p.add_argument('--log',
                    help='Log file path (default: auto-named in cwd)')
+    p.add_argument('--config',
+                   default=str(_CONFIG_FILE),
+                   help='Config file path (default: %(default)s)')
     return p.parse_args()
 
 
@@ -658,14 +685,22 @@ def parse_args() -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    args        = parse_args()
-    source_root = Path(args.source)
-    dest_root   = Path(args.dest)
-    tag         = args.tag.lower() if args.tag else None
-    dry_run     = not args.execute
+    args    = parse_args()
+    dry_run = not args.execute
 
     setup_logging(args.log)
     log = logging.getLogger(__name__)
+
+    if not args.source or not args.dest:
+        log.error(
+            'source and dest must be set via config.toml or --source/--dest. '
+            'Copy config.example.toml to config.toml and fill in your paths.'
+        )
+        sys.exit(1)
+
+    source_root = Path(args.source)
+    dest_root   = Path(args.dest)
+    tag         = args.tag.lower() if args.tag else None
 
     if dry_run:
         log.info('DRY RUN — no files will be changed. Pass --execute to apply.')
