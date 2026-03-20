@@ -1,4 +1,4 @@
-# photo_tools
+# photo-tools
 
 A script for renaming photo files using EXIF metadata.
 
