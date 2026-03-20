@@ -1,10 +1,22 @@
 # photo-tools
 
-A script for renaming photo files using EXIF metadata.
+A Python toolkit for renaming and consolidating photo libraries using EXIF metadata.
 
-## Output format
+## Scripts
 
-Files are renamed to the following convention, all lowercase:
+### `rename.py` — single-shoot rename
+
+Renames all photos in a directory to a consistent date/time convention using embedded EXIF data. Designed for processing one shoot at a time.
+
+```sh
+# Preview (dry-run, default)
+uv run rename.py /path/to/photos tagname
+
+# Apply
+uv run rename.py /path/to/photos tagname -x
+```
+
+**Output format:**
 
 ```
 {date}_{time}_{tag}_{original}.{ext}
@@ -21,43 +33,82 @@ Example: `DSF4768.RAF` → `20260118_152258_liam06mo_dsf4768.raf`
 
 XMP sidecar files are renamed to match and their internal filename references are updated automatically.
 
+---
+
+### `consolidate.py` — bulk library consolidation
+
+Recursively processes a large photo library: renames by EXIF date, deduplicates by content hash, organises into `YYYY/MM` folders, and moves sidecars alongside their originals. Designed for one-time or incremental consolidation of an unorganised archive.
+
+```sh
+# Preview (dry-run, default)
+uv run consolidate.py
+
+# Apply
+uv run consolidate.py --execute
+
+# Override config file paths
+uv run consolidate.py --source /path/to/unorg --dest /path/to/library --execute
+```
+
+**Configuration:** copy `config.example.toml` to `config.toml` and fill in your paths. `config.toml` is gitignored.
+
+**Output layout:**
+
+```
+<dest>/
+  YYYY/MM/          ← organised photos
+  _undated/         ← files dated by mtime only (flagged _mtime in filename)
+  dupes/YYYY/MM/    ← hash duplicates (never deleted)
+  movies/YYYY/MM/   ← standalone video files
+  _review/          ← PSDs, Lightroom catalogs, unpaired thumbnails
+```
+
+**Date extraction fallback chain:**
+
+1. Embedded EXIF (`DateTimeOriginal` → `CreateDate` → `ModifyDate`)
+2. Paired XMP sidecar EXIF
+3. Date regex parsed from filename — `_fndate` appended to output filename
+4. Filesystem mtime — `_mtime` appended, file goes to `_undated/`
+
+**Resume support:** a SQLite cache (`consolidate_cache.db`) tracks processed files using a fast size+mtime fingerprint. Interrupted runs resume without re-hashing completed files.
+
+---
+
 ## Supported formats
 
-| Format | Cameras |
-|--------|---------|
-| CR2, CR3 | Canon RAW |
-| NEF | Nikon RAW |
-| ARW | Sony RAW |
-| RAF | Fujifilm RAW |
-| ORF | Olympus RAW |
-| RW2 | Panasonic RAW |
-| DNG | Adobe DNG |
-| JPG, JPEG | JPEG |
+| Category | Extensions |
+|----------|-----------|
+| Photos | CR2, CR3, RAF, DNG, HEIC, JPG, JPEG, TIF, TIFF, PNG, WEBP, BMP |
+| Video | MOV, MP4, M4V, MPG, MPEG, AVI, WMV |
+| Sidecars | XMP, PP3 (both travel with their paired original) |
+| Live Photos | MOV paired with HEIC by filename stem |
 
 ## Requirements
 
-- [uv](https://docs.astral.sh/uv/) — no other setup needed.
-
-## Usage
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/)
+- `exiftool` system binary
 
 ```sh
-# Preview renames (dry run, default)
-uv run rename.py /path/to/photos liam06mo
+# macOS
+brew install exiftool
 
-# Apply renames
-uv run rename.py /path/to/photos liam06mo -x
+# Fedora / RHEL
+sudo dnf install perl-Image-ExifTool
+
+# Debian / Ubuntu
+sudo apt install libimage-exiftool-perl
 ```
 
+## Tests
+
+```sh
+uv run --group dev pytest tests/                     # all tests
+uv run --group dev pytest tests/test_unit.py         # unit only (no exiftool needed)
+uv run --group dev pytest tests/test_integration.py  # requires exiftool + git lfs pull
 ```
-usage: rename.py [-h] [-x] directory tag
 
-Renames photo files to a date/time/tag convention.
+## License
 
-positional arguments:
-  directory    Directory to process.
-  tag          Tag to embed in filenames (e.g. 'liam06mo').
-
-options:
-  -x, --execute  Actually rename files (default is a dry-run preview).
-  -h, --help     Show this help message and exit.
-```
+Code: [MIT](LICENSE)
+Sample files in `samples/`: [CC BY 4.0](LICENSE-samples)
