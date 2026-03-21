@@ -536,7 +536,10 @@ def _cache_hit(path: Path, cache: 'CacheDB') -> bool:
     if not cached:
         return False
     cached_fp, cached_dest, _ = cached
-    return cached_fp == fingerprint(real) and Path(cached_dest).exists()
+    try:
+        return cached_fp == fingerprint(real) and Path(cached_dest).exists()
+    except FileNotFoundError:
+        return False
 
 
 def process_file(path: Path, category: FileCategory, exif_data: dict, ctx: ProcessContext) -> str:
@@ -780,7 +783,7 @@ def main() -> None:
     )
 
     # --- Batch EXIF — skip already-cached files to save time on resume ---
-    todo = [p for p in photos + videos if not _cache_hit(p, cache)]
+    todo = [p for p in photos + videos if p.exists() and not _cache_hit(p, cache)]
     log.info(
         'Running exiftool on %d files (%d already cached)...',
         len(todo), len(photos) + len(videos) - len(todo),
