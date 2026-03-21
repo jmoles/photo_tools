@@ -8,10 +8,13 @@ from unittest.mock import patch
 
 import pytest
 
+import fcntl
+
 from consolidate import (
     DateTier,
     FileCategory,
     _FILENAME_PATTERNS,
+    _acquire_lock,
     _date_from_exif_dict,
     _date_from_filename,
     _original_stem,
@@ -340,3 +343,29 @@ class TestFindXmp:
         img = tmp_path / 'photo.jpg'
         img.touch()
         assert find_xmp(img) is None
+
+
+# ---------------------------------------------------------------------------
+# _acquire_lock — concurrent-run prevention
+# ---------------------------------------------------------------------------
+
+class TestAcquireLock:
+    def test_acquires_when_free(self, tmp_path):
+        lock = tmp_path / 'test.lock'
+        assert _acquire_lock(lock) is True
+
+    def test_blocks_second_acquire(self, tmp_path):
+        lock = tmp_path / 'test.lock'
+        # Acquire the lock in this process via a separate file handle
+        fh = open(lock, 'w')
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # A second acquire attempt on the same lock file should fail
+        assert _acquire_lock(lock) is False
+        fh.close()
+
+    def test_succeeds_after_lock_released(self, tmp_path):
+        lock = tmp_path / 'test.lock'
+        fh = open(lock, 'w')
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fh.close()  # releases the lock
+        assert _acquire_lock(lock) is True

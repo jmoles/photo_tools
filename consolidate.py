@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import fcntl
 import json
 import tomllib
 import logging
@@ -622,6 +623,9 @@ def process_file(path: Path, category: FileCategory, exif_data: dict, ctx: Proce
             log.info('  SIDECAR  %s -> %s', sc, sc_dest)
 
     if not ctx.dry_run:
+        if not path.exists():
+            log.warning('SKIP     source vanished before move: %s', path)
+            return 'SKIP'
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(path), dest)
         for sc, sc_dest, sc_ext in sidecars:
@@ -639,6 +643,17 @@ def process_file(path: Path, category: FileCategory, exif_data: dict, ctx: Proce
 # ---------------------------------------------------------------------------
 # Logging setup
 # ---------------------------------------------------------------------------
+
+def _acquire_lock(lock_path: Path) -> bool:
+    """Acquire an exclusive non-blocking lock file. Returns True on success."""
+    fh = open(lock_path, 'w')
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        fh.close()
+        return False
+
 
 def setup_logging(log_path: str | None) -> None:
     if not log_path:
@@ -719,6 +734,12 @@ def main() -> None:
 
     setup_logging(args.log)
     log = logging.getLogger(__name__)
+
+    # Prevent concurrent runs from racing each other
+    lock_path = Path(args.hash_cache).with_suffix('.lock')
+    if not _acquire_lock(lock_path):
+        log.error('Another consolidate.py is already running (lock: %s). Exiting.', lock_path)
+        sys.exit(1)
 
     if not args.source or not args.dest:
         log.error(
