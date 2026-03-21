@@ -18,14 +18,13 @@ from organize import (
     _date_from_exif_dict,
     _date_from_filename,
     _original_stem,
-    _parse_exif_dt,
     build_filename,
     classify,
     dest_dir_for,
-    find_xmp,
     unique_dest,
     DateResult,
 )
+from photo import find_xmp, parse_exif_dt as _parse_exif_dt
 
 
 # ---------------------------------------------------------------------------

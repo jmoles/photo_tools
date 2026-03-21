@@ -9,13 +9,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from shoot import (
-    ALREADY_RENAMED_RE,
     check_already_renamed,
-    find_xmp,
     parse_date,
     process_file,
     rename_xmp,
 )
+from photo import ALREADY_RENAMED_RE, find_xmp
 
 
 # ---------------------------------------------------------------------------
@@ -31,10 +30,10 @@ class TestParseDate:
         with pytest.raises(ValueError):
             parse_date('not-a-date')
 
-    def test_invalid_iso8601_raises(self):
-        # rename.py only handles EXIF format; ISO 8601 should raise
-        with pytest.raises(ValueError):
-            parse_date('2023-06-15T10:30:22')
+    def test_valid_iso8601(self):
+        # parse_date now handles ISO 8601 via parse_exif_dt
+        dt = parse_date('2023-06-15T10:30:22')
+        assert dt == datetime.datetime(2023, 6, 15, 10, 30, 22)
 
 
 # ---------------------------------------------------------------------------

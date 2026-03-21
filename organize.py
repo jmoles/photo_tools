@@ -80,8 +80,7 @@ SKIP_NAMES: frozenset[str] = frozenset({
 
 EXIF_DATE_TAGS = ('DateTimeOriginal', 'CreateDate', 'ModifyDate')
 
-# Matches filenames already renamed by this toolchain: YYYYMMDD_HHMMSS_…
-_ALREADY_RENAMED_RE = re.compile(r'^\d{8}_\d{6}_')
+from photo import ALREADY_RENAMED_RE as _ALREADY_RENAMED_RE, find_xmp, parse_exif_dt as _parse_exif_dt
 
 
 def _original_stem(stem: str) -> str:
@@ -302,18 +301,6 @@ def _find_ext(path: Path, *exts: str) -> Path | None:
     return None
 
 
-def find_xmp(path: Path) -> Path | None:
-    # photo.xmp (standard) or photo.jpg.xmp (Lightroom/darktable double-extension)
-    for candidate in [
-        path.with_suffix('.xmp'),
-        path.with_suffix('.XMP'),
-        path.parent / (path.name + '.xmp'),
-        path.parent / (path.name + '.XMP'),
-    ]:
-        if candidate.is_file():
-            return candidate
-    return None
-
 
 def find_pp3(path: Path) -> Path | None:
     return _find_ext(path, 'pp3', 'PP3')
@@ -328,25 +315,6 @@ def find_live_mov(path: Path) -> Path | None:
 # ---------------------------------------------------------------------------
 # Date extraction — fallback chain
 # ---------------------------------------------------------------------------
-
-def _parse_exif_dt(s: str) -> datetime.datetime | None:
-    if not s:
-        return None
-    s = s.strip()
-    # Strip timezone suffix: +HH:MM, -HH:MM, or Z
-    s = re.sub(r'[+-]\d{2}:\d{2}$', '', s)
-    s = re.sub(r'Z$', '', s)
-    for fmt in (
-        '%Y:%m:%d %H:%M:%S',    # standard EXIF
-        '%Y-%m-%dT%H:%M:%S',    # ISO 8601 with T separator
-        '%Y-%m-%d %H:%M:%S',    # ISO 8601 with space separator
-    ):
-        try:
-            dt = datetime.datetime.strptime(s, fmt)
-            return dt if dt.year > 1970 else None
-        except ValueError:
-            continue
-    return None
 
 
 def _date_from_exif_dict(data: dict) -> DateResult | None:

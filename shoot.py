@@ -13,31 +13,16 @@ from pathlib import Path
 
 import exifread
 
-ALREADY_RENAMED_RE = re.compile(r'^\d{8}_\d{6}_')
-
-PHOTO_EXTS = {
-    'cr2', 'cr3',   # Canon RAW
-    'nef',           # Nikon RAW
-    'arw',           # Sony RAW
-    'raf',           # Fujifilm RAW
-    'orf',           # Olympus RAW
-    'rw2',           # Panasonic RAW
-    'dng',           # Adobe DNG
-    'jpg', 'jpeg',   # JPEG
-}
+from photo import ALREADY_RENAMED_RE, SHOOT_PHOTO_EXTS as PHOTO_EXTS, find_xmp, parse_exif_dt
 
 XMP_EXT = 'xmp'
 
 
 def parse_date(date_str: str) -> datetime.datetime:
-    return datetime.datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
-
-
-def find_xmp(path: Path) -> Path | None:
-    for candidate in [path.with_suffix('.xmp'), path.with_suffix('.XMP')]:
-        if candidate.is_file():
-            return candidate
-    return None
+    dt = parse_exif_dt(date_str)
+    if dt is None:
+        raise ValueError(f'Unable to parse EXIF date: {date_str!r}')
+    return dt
 
 
 def rename_xmp(xmp_path: Path, new_xmp_path: Path, old_img_name: str, new_img_name: str) -> None:
