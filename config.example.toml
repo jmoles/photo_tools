@@ -5,7 +5,7 @@
 [paths]
 source     = "/path/to/unorganised/photos"   # input directory (processed recursively)
 dest       = "/path/to/library"              # output root (YYYY/MM structure created here)
-hash_cache = "consolidate_cache.db"          # SQLite resume cache (relative or absolute)
+hash_cache = "consolidate_cache.db"          # SQLite resume cache — use an absolute path on shared storage to run from any machine
 
 [options]
 batch_size = 500        # number of files per exiftool invocation

@@ -331,12 +331,21 @@ def find_live_mov(path: Path) -> Path | None:
 def _parse_exif_dt(s: str) -> datetime.datetime | None:
     if not s:
         return None
-    s = re.sub(r'[+-]\d{2}:\d{2}$', '', s.strip())
-    try:
-        dt = datetime.datetime.strptime(s, '%Y:%m:%d %H:%M:%S')
-        return dt if dt.year > 1970 else None
-    except ValueError:
-        return None
+    s = s.strip()
+    # Strip timezone suffix: +HH:MM, -HH:MM, or Z
+    s = re.sub(r'[+-]\d{2}:\d{2}$', '', s)
+    s = re.sub(r'Z$', '', s)
+    for fmt in (
+        '%Y:%m:%d %H:%M:%S',    # standard EXIF
+        '%Y-%m-%dT%H:%M:%S',    # ISO 8601 with T separator
+        '%Y-%m-%d %H:%M:%S',    # ISO 8601 with space separator
+    ):
+        try:
+            dt = datetime.datetime.strptime(s, fmt)
+            return dt if dt.year > 1970 else None
+        except ValueError:
+            continue
+    return None
 
 
 def _date_from_exif_dict(data: dict) -> DateResult | None:

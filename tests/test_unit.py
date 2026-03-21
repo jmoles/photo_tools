@@ -42,6 +42,18 @@ class TestParseExifDt:
         dt = _parse_exif_dt('2023:06:15 10:30:22-05:00')
         assert dt == datetime.datetime(2023, 6, 15, 10, 30, 22)
 
+    def test_valid_iso8601_T(self):
+        dt = _parse_exif_dt('2025-04-30T00:00:00Z')
+        assert dt == datetime.datetime(2025, 4, 30, 0, 0, 0)
+
+    def test_valid_iso8601_space(self):
+        dt = _parse_exif_dt('2025-04-30 15:45:11')
+        assert dt == datetime.datetime(2025, 4, 30, 15, 45, 11)
+
+    def test_valid_iso8601_with_offset(self):
+        dt = _parse_exif_dt('2025-05-26T15:45:11+07:00')
+        assert dt == datetime.datetime(2025, 5, 26, 15, 45, 11)
+
     def test_rejects_epoch(self):
         assert _parse_exif_dt('1970:01:01 00:00:00') is None
 
