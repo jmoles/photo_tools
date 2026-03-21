@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from rename import (
+from shoot import (
     ALREADY_RENAMED_RE,
     check_already_renamed,
     find_xmp,
@@ -161,7 +161,7 @@ class TestProcessFile:
     def test_dry_run_prints_rename(self, tmp_path, capsys):
         img = tmp_path / 'IMG_0042.jpg'
         img.touch()
-        with patch('rename.exifread.process_file', return_value=self._make_tags()):
+        with patch('shoot.exifread.process_file', return_value=self._make_tags()):
             process_file(img, tag='vacation', dry_run=True)
         out = capsys.readouterr().out
         assert '20230615_103022_vacation_img_0042.jpg' in out
@@ -170,7 +170,7 @@ class TestProcessFile:
     def test_execute_renames_file(self, tmp_path):
         img = tmp_path / 'IMG_0042.jpg'
         img.touch()
-        with patch('rename.exifread.process_file', return_value=self._make_tags()):
+        with patch('shoot.exifread.process_file', return_value=self._make_tags()):
             process_file(img, tag='vacation', dry_run=False)
         assert not img.exists()
         assert (tmp_path / '20230615_103022_vacation_img_0042.jpg').exists()
@@ -178,7 +178,7 @@ class TestProcessFile:
     def test_lowercases_extension(self, tmp_path):
         img = tmp_path / 'DSF4989.RAF'
         img.touch()
-        with patch('rename.exifread.process_file', return_value=self._make_tags()):
+        with patch('shoot.exifread.process_file', return_value=self._make_tags()):
             process_file(img, tag='shoot', dry_run=False)
         result = list(tmp_path.glob('*.raf'))
         assert len(result) == 1
@@ -187,14 +187,14 @@ class TestProcessFile:
     def test_lowercases_stem(self, tmp_path):
         img = tmp_path / 'DSF4989.jpg'
         img.touch()
-        with patch('rename.exifread.process_file', return_value=self._make_tags()):
+        with patch('shoot.exifread.process_file', return_value=self._make_tags()):
             process_file(img, tag='shoot', dry_run=False)
         assert (tmp_path / '20230615_103022_shoot_dsf4989.jpg').exists()
 
     def test_skips_missing_exif(self, tmp_path, capsys):
         img = tmp_path / 'IMG_0042.jpg'
         img.touch()
-        with patch('rename.exifread.process_file', return_value={}):
+        with patch('shoot.exifread.process_file', return_value={}):
             process_file(img, tag='vacation', dry_run=False)
         assert img.exists()  # not renamed
         assert 'Warning' in capsys.readouterr().out
@@ -208,7 +208,7 @@ class TestProcessFile:
         img.touch()
         xmp = tmp_path / 'IMG_0042.xmp'
         xmp.write_text('<xmp>IMG_0042.jpg</xmp>')
-        with patch('rename.exifread.process_file', return_value=self._make_tags()):
+        with patch('shoot.exifread.process_file', return_value=self._make_tags()):
             process_file(img, tag='vacation', dry_run=False)
         new_xmp = tmp_path / '20230615_103022_vacation_img_0042.xmp'
         assert new_xmp.exists()
@@ -220,6 +220,6 @@ class TestProcessFile:
         img.touch()
         xmp = tmp_path / 'IMG_0042.xmp'
         xmp.write_text('<xmp/>')
-        with patch('rename.exifread.process_file', return_value=self._make_tags()):
+        with patch('shoot.exifread.process_file', return_value=self._make_tags()):
             process_file(img, tag='vacation', dry_run=True)
         assert xmp.exists()  # not touched in dry run

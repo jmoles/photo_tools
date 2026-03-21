@@ -12,7 +12,7 @@ from helpers import (
     CANON_CR2, FUJIFILM_RAF, IPHONE_HEIC, IPHONE_PRORAW, RICOH_DNG,
     make_jpeg_no_exif, make_jpeg_with_exif, make_xmp_sidecar,
 )
-from consolidate import (
+from organize import (
     CacheDB,
     DateTier,
     FileCategory,
@@ -75,7 +75,7 @@ class TestTier1Exif:
         img = make_jpeg_with_exif(src / 'IMG_0001.jpg', '2023:06:15 10:30:22')
         ctx = _make_ctx(src, dst, tmp_path)
         # Use get_date directly
-        from consolidate import batch_exiftool
+        from organize import batch_exiftool
         exif = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -88,7 +88,7 @@ class TestTier1Exif:
     def test_fujifilm_raf(self, src, dst, tmp_path):
         img = src / FUJIFILM_RAF.name
         shutil.copy2(FUJIFILM_RAF, img)
-        from consolidate import batch_exiftool
+        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -99,7 +99,7 @@ class TestTier1Exif:
     def test_ricoh_dng(self, src, dst, tmp_path):
         img = src / RICOH_DNG.name
         shutil.copy2(RICOH_DNG, img)
-        from consolidate import batch_exiftool
+        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -110,7 +110,7 @@ class TestTier1Exif:
     def test_iphone_heic(self, src, dst, tmp_path):
         img = src / IPHONE_HEIC.name
         shutil.copy2(IPHONE_HEIC, img)
-        from consolidate import batch_exiftool
+        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -120,7 +120,7 @@ class TestTier1Exif:
     def test_iphone_proraw_dng(self, src, dst, tmp_path):
         img = src / IPHONE_PRORAW.name
         shutil.copy2(IPHONE_PRORAW, img)
-        from consolidate import batch_exiftool
+        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -130,7 +130,7 @@ class TestTier1Exif:
     def test_canon_cr2(self, src, dst, tmp_path):
         img = src / CANON_CR2.name
         shutil.copy2(CANON_CR2, img)
-        from consolidate import batch_exiftool
+        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -411,7 +411,7 @@ class TestAlreadyRenamed:
         """File named 20200101_…jpg but EXIF says 2023 → organised under 2023."""
         img = make_jpeg_with_exif(src / '20200101_000000_old_photo.jpg', '2023:06:15 10:30:00')
         ctx = _make_ctx(src, dst, tmp_path)
-        from consolidate import batch_exiftool
+        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None

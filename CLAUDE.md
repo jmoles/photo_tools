@@ -6,20 +6,20 @@ A Python toolkit for renaming and consolidating photo libraries using EXIF metad
 
 | Script | Purpose |
 |--------|---------|
-| `rename.py` | Targeted rename of a single shoot directory by EXIF date |
-| `consolidate.py` | Bulk library consolidation — dedup, organise, sidecar handling |
+| `shoot.py` | Targeted rename of a single shoot directory by EXIF date |
+| `organize.py` | Bulk library consolidation — dedup, organise, sidecar handling |
 
 ## Running
 
 ```bash
 # Rename a single shoot (dry-run by default)
-uv run rename.py /path/to/shoot tagname
-uv run rename.py /path/to/shoot tagname -x   # apply
+uv run shoot.py /path/to/shoot tagname
+uv run shoot.py /path/to/shoot tagname -x   # apply
 
 # Consolidate library (dry-run by default)
-uv run consolidate.py
-uv run consolidate.py --execute              # apply
-uv run consolidate.py --source /path/to/unorg --dest /path/to/library  # override config
+uv run organize.py
+uv run organize.py --execute              # apply
+uv run organize.py --source /path/to/unorg --dest /path/to/library  # override config
 ```
 
 ## Configuration
@@ -54,7 +54,7 @@ run `git lfs pull` to fetch them).
 | Video | MOV, MP4, M4V, MPG, MPEG, AVI, WMV |
 | Sidecars | XMP, PP3 (both travel with their paired original) |
 
-## consolidate.py — output layout
+## organize.py — output layout
 
 ```
 <dest>/
@@ -74,6 +74,6 @@ run `git lfs pull` to fetch them).
 
 ## Resume / cache
 
-`consolidate.py` maintains a SQLite cache (`consolidate_cache.db` by default). Re-running
+`organize.py` maintains a SQLite cache (`consolidate_cache.db` by default). Re-running
 after an interruption skips already-processed files using a fast size+mtime fingerprint
 check — no re-hashing of completed files.

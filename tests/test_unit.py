@@ -10,7 +10,7 @@ import pytest
 
 import fcntl
 
-from consolidate import (
+from organize import (
     DateTier,
     FileCategory,
     _FILENAME_PATTERNS,

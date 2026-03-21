@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""consolidate.py — Bulk photo library consolidation.
+"""organize.py — Bulk photo library consolidation.
 
 Recursively processes a source directory, renames photo/video files by EXIF
 date, organises into YYYY/MM structure, deduplicates by SHA-256 content hash,
@@ -115,7 +115,7 @@ _FILENAME_PATTERNS: list[re.Pattern] = [
     ),
 ]
 
-DEFAULT_CACHE  = 'consolidate_cache.db'
+DEFAULT_CACHE  = 'organize_cache.db'
 DEFAULT_BATCH  = 500
 
 # ---------------------------------------------------------------------------
@@ -661,7 +661,7 @@ def _acquire_lock(lock_path: Path) -> bool:
 def setup_logging(log_path: str | None) -> None:
     if not log_path:
         ts       = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        log_path = f'consolidate_{ts}.log'
+        log_path = f'organize_{ts}.log'
     fmt = '%(asctime)s %(levelname)-8s %(message)s'
     logging.basicConfig(
         level=logging.DEBUG,

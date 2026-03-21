@@ -4,16 +4,16 @@ A Python toolkit for renaming and consolidating photo libraries using EXIF metad
 
 ## Scripts
 
-### `rename.py` — single-shoot rename
+### `shoot.py` — single-shoot rename
 
 Renames all photos in a directory to a consistent date/time convention using embedded EXIF data. Designed for processing one shoot at a time.
 
 ```sh
 # Preview (dry-run, default)
-uv run rename.py /path/to/photos tagname
+uv run shoot.py /path/to/photos tagname
 
 # Apply
-uv run rename.py /path/to/photos tagname -x
+uv run shoot.py /path/to/photos tagname -x
 ```
 
 **Output format:**
@@ -35,19 +35,19 @@ XMP sidecar files are renamed to match and their internal filename references ar
 
 ---
 
-### `consolidate.py` — bulk library consolidation
+### `organize.py` — bulk library consolidation
 
 Recursively processes a large photo library: renames by EXIF date, deduplicates by content hash, organises into `YYYY/MM` folders, and moves sidecars alongside their originals. Designed for one-time or incremental consolidation of an unorganised archive.
 
 ```sh
 # Preview (dry-run, default)
-uv run consolidate.py
+uv run organize.py
 
 # Apply
-uv run consolidate.py --execute
+uv run organize.py --execute
 
 # Override config file paths
-uv run consolidate.py --source /path/to/unorg --dest /path/to/library --execute
+uv run organize.py --source /path/to/unorg --dest /path/to/library --execute
 ```
 
 **Configuration:** copy `config.example.toml` to `config.toml` and fill in your paths. `config.toml` is gitignored.
