@@ -13,33 +13,13 @@ from pathlib import Path
 
 import exifread
 
-from photo import ALREADY_RENAMED_RE, SHOOT_PHOTO_EXTS as PHOTO_EXTS, find_xmp, parse_exif_dt
-
-XMP_EXT = 'xmp'
-
-
-def parse_date(date_str: str) -> datetime.datetime:
-    dt = parse_exif_dt(date_str)
-    if dt is None:
-        raise ValueError(f'Unable to parse EXIF date: {date_str!r}')
-    return dt
-
-
-def rename_xmp(xmp_path: Path, new_xmp_path: Path, old_img_name: str, new_img_name: str) -> None:
-    content = xmp_path.read_text()
-    content = content.replace(old_img_name, new_img_name)
-    new_xmp_path.write_text(content)
-    xmp_path.unlink()
+from photo import ALREADY_RENAMED_RE, SHOOT_PHOTO_EXTS as PHOTO_EXTS, parse_exif_dt, rename_file
 
 
 def process_file(path: Path, tag: str, dry_run: bool = True) -> None:
     if not path.is_file():
         print(f"Error: {path} is not a file.")
         return
-
-    ext = path.suffix.lstrip('.').lower()
-    original_stem = path.stem.lower().strip('_')
-    xmp_path = find_xmp(path)
 
     with path.open('rb') as f:
         tags = exifread.process_file(f, stop_tag='Image DateTime')
@@ -48,19 +28,12 @@ def process_file(path: Path, tag: str, dry_run: bool = True) -> None:
         print(f"Warning: No EXIF date found in {path.name}, skipping.")
         return
 
-    dt = parse_date(str(tags['Image DateTime']))
-    new_stem = f"{dt.strftime('%Y%m%d')}_{dt.strftime('%H%M%S')}_{tag}_{original_stem}"
-    new_path = path.with_name(f"{new_stem}.{ext}")
-    new_xmp_path = path.with_name(f"{new_stem}.{XMP_EXT}")
+    dt = parse_exif_dt(str(tags['Image DateTime']))
+    if dt is None:
+        print(f"Warning: Unable to parse EXIF date in {path.name}, skipping.")
+        return
 
-    if dry_run:
-        print(f"Rename: {path.name} -> {new_path.name}")
-        if xmp_path:
-            print(f"Rename: {xmp_path.name} -> {new_xmp_path.name}")
-    else:
-        path.rename(new_path)
-        if xmp_path:
-            rename_xmp(xmp_path, new_xmp_path, path.name, new_path.name)
+    rename_file(path, dt, tag, dry_run=dry_run)
 
 
 def check_already_renamed(directory: Path) -> list[str]:

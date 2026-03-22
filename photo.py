@@ -42,6 +42,38 @@ def parse_exif_dt(s: str) -> datetime.datetime | None:
     return None
 
 
+def rename_xmp(xmp_path: Path, new_xmp_path: Path, old_img_name: str, new_img_name: str) -> None:
+    """Rename an XMP sidecar, updating any internal references to the image filename."""
+    content = xmp_path.read_text()
+    content = content.replace(old_img_name, new_img_name)
+    new_xmp_path.write_text(content)
+    xmp_path.unlink()
+
+
+def rename_file(path: Path, dt: datetime.datetime, tag: str, dry_run: bool = False) -> Path | None:
+    """Rename path to YYYYMMDD_HHMMSS_tag_original.ext (+ paired XMP sidecar).
+
+    Returns the new path, or None in dry-run mode.
+    """
+    ext = path.suffix.lstrip('.').lower()
+    original_stem = path.stem.lower().strip('_')
+    xmp_path = find_xmp(path)
+    new_stem = f"{dt.strftime('%Y%m%d')}_{dt.strftime('%H%M%S')}_{tag}_{original_stem}"
+    new_path = path.with_name(f"{new_stem}.{ext}")
+    new_xmp_path = path.with_name(f"{new_stem}.xmp")
+
+    if dry_run:
+        print(f"Rename: {path.name} -> {new_path.name}")
+        if xmp_path:
+            print(f"Rename: {xmp_path.name} -> {new_xmp_path.name}")
+        return None
+
+    path.rename(new_path)
+    if xmp_path:
+        rename_xmp(xmp_path, new_xmp_path, path.name, new_path.name)
+    return new_path
+
+
 def find_xmp(path: Path) -> Path | None:
     """Return the XMP sidecar for path, or None.
 

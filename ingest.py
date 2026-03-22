@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from photo import parse_exif_dt
+from photo import ALREADY_RENAMED_RE, parse_exif_dt, rename_file
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -367,15 +367,23 @@ def copy_shoot(
 # ---------------------------------------------------------------------------
 
 def _rename_shoot(dest_dir: Path, tag: str) -> None:
-    """Run shoot.py --execute on dest_dir via uv run."""
-    shoot_py = Path(__file__).parent / 'shoot.py'
-    print(f'  Renaming...')
-    result = subprocess.run(
-        ['uv', 'run', str(shoot_py), str(dest_dir), tag, '-x'],
-        cwd=Path(__file__).parent,
-    )
-    if result.returncode != 0:
-        print(f'  Warning: rename step exited with code {result.returncode}', file=sys.stderr)
+    """Rename files in dest_dir to the YYYYMMDD_HHMMSS_tag_original convention."""
+    candidates = [
+        p for p in sorted(dest_dir.iterdir())
+        if p.is_file()
+        and p.suffix.lstrip('.').lower() in (PHOTO_EXTS | VIDEO_EXTS)
+        and not ALREADY_RENAMED_RE.match(p.stem)
+    ]
+    if not candidates:
+        return
+    print('  Renaming...')
+    exif_map = read_exif(candidates)
+    for f in candidates:
+        dt = _best_date(f, exif_map.get(f, {}))
+        if dt is None:
+            print(f'  Warning: no date found for {f.name}, skipping rename.', file=sys.stderr)
+            continue
+        rename_file(f, dt, tag)
 
 
 # ---------------------------------------------------------------------------

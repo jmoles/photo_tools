@@ -6,33 +6,24 @@ import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from shoot import (
-    check_already_renamed,
-    parse_date,
-    process_file,
-    rename_xmp,
-)
-from photo import ALREADY_RENAMED_RE, find_xmp
+from shoot import check_already_renamed, process_file
+from photo import ALREADY_RENAMED_RE, find_xmp, parse_exif_dt, rename_xmp
 
 
 # ---------------------------------------------------------------------------
 # parse_date
 # ---------------------------------------------------------------------------
 
-class TestParseDate:
+class TestParseExifDt:
     def test_valid(self):
-        dt = parse_date('2023:06:15 10:30:22')
+        dt = parse_exif_dt('2023:06:15 10:30:22')
         assert dt == datetime.datetime(2023, 6, 15, 10, 30, 22)
 
-    def test_invalid_raises(self):
-        with pytest.raises(ValueError):
-            parse_date('not-a-date')
+    def test_invalid_returns_none(self):
+        assert parse_exif_dt('not-a-date') is None
 
     def test_valid_iso8601(self):
-        # parse_date now handles ISO 8601 via parse_exif_dt
-        dt = parse_date('2023-06-15T10:30:22')
+        dt = parse_exif_dt('2023-06-15T10:30:22')
         assert dt == datetime.datetime(2023, 6, 15, 10, 30, 22)
 
 
