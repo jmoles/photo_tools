@@ -43,10 +43,19 @@ MINIMAL_JPEG: bytes = bytes([
 # ---------------------------------------------------------------------------
 
 def make_jpeg_with_exif(path: Path, date_str: str = '2023:06:15 10:30:00') -> Path:
-    """Write a minimal JPEG then inject DateTimeOriginal via exiftool."""
+    """Write a minimal JPEG then inject date tags via exiftool.
+
+    Writes both DateTimeOriginal and ModifyDate (→ 'Image DateTime' in exifread)
+    to match what real cameras produce.
+    """
     path.write_bytes(MINIMAL_JPEG)
     subprocess.run(
-        ['exiftool', '-overwrite_original', f'-DateTimeOriginal={date_str}', str(path)],
+        [
+            'exiftool', '-overwrite_original',
+            f'-DateTimeOriginal={date_str}',
+            f'-ModifyDate={date_str}',
+            str(path),
+        ],
         check=True, capture_output=True,
     )
     return path
@@ -57,6 +66,29 @@ def make_jpeg_no_exif(path: Path) -> Path:
     path.write_bytes(MINIMAL_JPEG)
     subprocess.run(
         ['exiftool', '-overwrite_original', '-all=', str(path)],
+        check=True, capture_output=True,
+    )
+    return path
+
+
+def make_jpeg_with_gps(
+    path: Path,
+    date_str: str = '2026:03:10 09:14:00',
+    lat: float = 34.6937,   # Osaka, Japan
+    lon: float = 135.5023,
+) -> Path:
+    """Write a minimal JPEG with DateTimeOriginal and GPS coordinates."""
+    path.write_bytes(MINIMAL_JPEG)
+    subprocess.run(
+        [
+            'exiftool', '-overwrite_original',
+            f'-DateTimeOriginal={date_str}',
+            f'-GPSLatitude={abs(lat)}',
+            f'-GPSLatitudeRef={"N" if lat >= 0 else "S"}',
+            f'-GPSLongitude={abs(lon)}',
+            f'-GPSLongitudeRef={"E" if lon >= 0 else "W"}',
+            str(path),
+        ],
         check=True, capture_output=True,
     )
     return path

@@ -6,12 +6,18 @@ A Python toolkit for renaming and consolidating photo libraries using EXIF metad
 
 | Script | Purpose |
 |--------|---------|
+| `ingest.py` | SD card import — auto-detect card, cluster into shoots, copy to Mac staging |
 | `shoot.py` | Targeted rename of a single shoot directory by EXIF date |
 | `organize.py` | Bulk library consolidation — dedup, organise, sidecar handling |
 
 ## Running
 
 ```bash
+# Import from SD card (dry-run by default)
+uv run ingest.py
+uv run ingest.py --execute              # apply
+uv run ingest.py --tag tokyo --execute  # default tag suggestion
+
 # Rename a single shoot (dry-run by default)
 uv run shoot.py /path/to/shoot tagname
 uv run shoot.py /path/to/shoot tagname -x   # apply
