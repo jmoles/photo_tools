@@ -94,6 +94,20 @@ def make_jpeg_with_gps(
     return path
 
 
+def inject_exif_date(path: Path, date_str: str) -> Path:
+    """Inject DateTimeOriginal and ModifyDate into an existing file via exiftool."""
+    subprocess.run(
+        [
+            'exiftool', '-overwrite_original',
+            f'-DateTimeOriginal={date_str}',
+            f'-ModifyDate={date_str}',
+            str(path),
+        ],
+        check=True, capture_output=True,
+    )
+    return path
+
+
 def make_xmp_sidecar(image_path: Path, date_str: str = '2023:06:15 10:30:00') -> Path:
     """Create a minimal XMP sidecar with a known DateTimeOriginal."""
     xmp_path = image_path.with_suffix('.xmp')

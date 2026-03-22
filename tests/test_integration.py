@@ -84,7 +84,7 @@ class TestTier1Exif:
         assert result.dt.month == 6
         assert result.dt.day   == 15
 
-    @pytest.mark.skipif(not FUJIFILM_RAF.exists(), reason='Fujifilm sample not available')
+    @pytest.mark.skipif(not FUJIFILM_RAF.exists(), reason='RAF sample not present (run git lfs pull)')
     def test_fujifilm_raf(self, src, dst, tmp_path):
         img = src / FUJIFILM_RAF.name
         shutil.copy2(FUJIFILM_RAF, img)
@@ -95,7 +95,7 @@ class TestTier1Exif:
         assert result.tier == DateTier.EXIF
         assert result.dt == result.dt.replace(year=2026, month=3, day=20, hour=8, minute=5, second=44)
 
-    @pytest.mark.skipif(not RICOH_DNG.exists(), reason='Ricoh sample not available')
+    @pytest.mark.skipif(not RICOH_DNG.exists(), reason='DNG sample not present (run git lfs pull)')
     def test_ricoh_dng(self, src, dst, tmp_path):
         img = src / RICOH_DNG.name
         shutil.copy2(RICOH_DNG, img)
@@ -106,7 +106,7 @@ class TestTier1Exif:
         assert result.tier == DateTier.EXIF
         assert result.dt == result.dt.replace(year=2026, month=3, day=20)
 
-    @pytest.mark.skipif(not IPHONE_HEIC.exists(), reason='iPhone HEIC sample not available')
+    @pytest.mark.skipif(not IPHONE_HEIC.exists(), reason='HEIC sample not present (run git lfs pull)')
     def test_iphone_heic(self, src, dst, tmp_path):
         img = src / IPHONE_HEIC.name
         shutil.copy2(IPHONE_HEIC, img)
@@ -116,7 +116,7 @@ class TestTier1Exif:
         assert result is not None
         assert result.tier == DateTier.EXIF
 
-    @pytest.mark.skipif(not IPHONE_PRORAW.exists(), reason='iPhone ProRAW sample not available')
+    @pytest.mark.skipif(not IPHONE_PRORAW.exists(), reason='ProRAW DNG sample not present (run git lfs pull)')
     def test_iphone_proraw_dng(self, src, dst, tmp_path):
         img = src / IPHONE_PRORAW.name
         shutil.copy2(IPHONE_PRORAW, img)
@@ -126,7 +126,7 @@ class TestTier1Exif:
         assert result is not None
         assert result.tier == DateTier.EXIF
 
-    @pytest.mark.skipif(not CANON_CR2.exists(), reason='Canon CR2 sample not available')
+    @pytest.mark.skipif(not CANON_CR2.exists(), reason='CR2 sample not present (run git lfs pull)')
     def test_canon_cr2(self, src, dst, tmp_path):
         img = src / CANON_CR2.name
         shutil.copy2(CANON_CR2, img)

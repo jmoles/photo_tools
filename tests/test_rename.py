@@ -44,7 +44,10 @@ class TestFindXmp:
         img.touch()
         xmp = tmp_path / 'photo.XMP'
         xmp.touch()
-        assert find_xmp(img) == xmp
+        result = find_xmp(img)
+        # Use samefile() — on case-insensitive filesystems (macOS) photo.XMP
+        # and photo.xmp are the same inode, so path equality is unreliable.
+        assert result is not None and result.samefile(xmp)
 
     def test_prefers_lowercase_over_uppercase(self, tmp_path):
         img = tmp_path / 'photo.jpg'
