@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import logging
 import re
 from pathlib import Path
 
@@ -43,11 +44,19 @@ def parse_exif_dt(s: str) -> datetime.datetime | None:
 
 
 def rename_xmp(xmp_path: Path, new_xmp_path: Path, old_img_name: str, new_img_name: str) -> None:
-    """Rename an XMP sidecar, updating any internal references to the image filename."""
+    """Rename an XMP sidecar, updating any internal references to the image filename.
+
+    Writes the new file before deleting the old one. Cleans up any partial
+    write on failure so the original is never lost.
+    """
     content = xmp_path.read_text()
-    content = content.replace(old_img_name, new_img_name)
-    new_xmp_path.write_text(content)
-    xmp_path.unlink()
+    updated = content.replace(old_img_name, new_img_name)
+    try:
+        new_xmp_path.write_text(updated)
+    except OSError:
+        new_xmp_path.unlink(missing_ok=True)  # remove any partial write
+        raise
+    xmp_path.unlink()  # only reached after successful write
 
 
 def rename_file(path: Path, dt: datetime.datetime, tag: str, dry_run: bool = False) -> Path | None:
@@ -70,7 +79,13 @@ def rename_file(path: Path, dt: datetime.datetime, tag: str, dry_run: bool = Fal
 
     path.rename(new_path)
     if xmp_path:
-        rename_xmp(xmp_path, new_xmp_path, path.name, new_path.name)
+        try:
+            rename_xmp(xmp_path, new_xmp_path, path.name, new_path.name)
+        except OSError as exc:
+            logging.getLogger(__name__).error(
+                'Renamed %s -> %s but failed to rename XMP sidecar %s: %s',
+                path.name, new_path.name, xmp_path.name, exc,
+            )
     return new_path
 
 

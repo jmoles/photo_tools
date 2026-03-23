@@ -6,6 +6,8 @@ import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from shoot import check_already_renamed, process_file
 from photo import ALREADY_RENAMED_RE, find_xmp, parse_exif_dt, rename_xmp
 
@@ -90,6 +92,33 @@ class TestRenameXmp:
         xmp.write_text('content')
         rename_xmp(xmp, tmp_path / 'new.xmp', 'photo.jpg', 'new.jpg')
         assert not xmp.exists()
+
+    def test_write_failure_preserves_original(self, tmp_path):
+        """If writing the new XMP fails, the original must not be deleted."""
+        xmp = tmp_path / 'photo.xmp'
+        xmp.write_text('<xmp>photo.jpg</xmp>')
+        new_xmp = tmp_path / 'renamed.xmp'
+        with patch('pathlib.Path.write_text', side_effect=OSError('disk full')):
+            with pytest.raises(OSError):
+                rename_xmp(xmp, new_xmp, 'photo.jpg', 'renamed.jpg')
+        assert xmp.exists(), 'original XMP must be preserved after write failure'
+
+    def test_write_failure_cleans_up_partial_new_file(self, tmp_path):
+        """A pre-existing file at the new path must be removed on write failure.
+
+        Simulates: new_xmp already exists from a previous partial run, then
+        write_text raises (e.g. disk full mid-write). The cleanup code must
+        unlink it so the next run doesn't see a corrupt sidecar.
+        """
+        xmp = tmp_path / 'photo.xmp'
+        xmp.write_text('<xmp>photo.jpg</xmp>')
+        new_xmp = tmp_path / 'renamed.xmp'
+        new_xmp.write_bytes(b'corrupt partial')  # pre-existing partial file
+        with patch('pathlib.Path.write_text', side_effect=OSError('disk full')):
+            with pytest.raises(OSError):
+                rename_xmp(xmp, new_xmp, 'photo.jpg', 'renamed.jpg')
+        assert not new_xmp.exists(), 'partial new XMP must be cleaned up after write failure'
+        assert xmp.exists(), 'original XMP must survive'
 
 
 # ---------------------------------------------------------------------------

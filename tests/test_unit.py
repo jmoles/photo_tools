@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import datetime
+import shutil
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -13,14 +14,17 @@ import fcntl
 from organize import (
     DateTier,
     FileCategory,
+    ProcessContext,
     _FILENAME_PATTERNS,
     _acquire_lock,
     _date_from_exif_dict,
     _date_from_filename,
+    _do_transfer,
     _original_stem,
     build_filename,
     classify,
     dest_dir_for,
+    process_file,
     unique_dest,
     walk_source,
     DateResult,
@@ -371,6 +375,132 @@ class TestWalkSource:
         results = list(walk_source(tmp_path))
         assert f1 in results
         assert f2 in results
+
+
+# ---------------------------------------------------------------------------
+# _do_transfer — error handling
+# ---------------------------------------------------------------------------
+
+class TestDoTransfer:
+    def test_returns_true_on_successful_copy(self, tmp_path):
+        src = tmp_path / 'src.jpg'
+        src.write_bytes(b'data')
+        dest = tmp_path / 'dest' / 'out.jpg'
+        assert _do_transfer(src, dest, dry_run=False, move=False) is True
+        assert dest.exists()
+
+    def test_returns_true_on_dry_run(self, tmp_path):
+        src = tmp_path / 'src.jpg'
+        src.write_bytes(b'data')
+        dest = tmp_path / 'dest.jpg'
+        assert _do_transfer(src, dest, dry_run=True, move=False) is True
+        assert not dest.exists()  # nothing actually copied
+
+    def test_returns_false_on_copy_failure(self, tmp_path):
+        src = tmp_path / 'src.jpg'
+        src.write_bytes(b'data')
+        dest = tmp_path / 'out.jpg'
+        with patch('organize.shutil.copy2', side_effect=OSError('disk full')):
+            result = _do_transfer(src, dest, dry_run=False, move=False)
+        assert result is False
+
+    def test_does_not_raise_on_copy_failure(self, tmp_path):
+        src = tmp_path / 'src.jpg'
+        src.write_bytes(b'data')
+        dest = tmp_path / 'out.jpg'
+        with patch('organize.shutil.copy2', side_effect=OSError('disk full')):
+            # must not propagate the OSError
+            _do_transfer(src, dest, dry_run=False, move=False)
+
+    def test_returns_false_on_move_failure(self, tmp_path):
+        src = tmp_path / 'src.jpg'
+        src.write_bytes(b'data')
+        dest = tmp_path / 'out.jpg'
+        with patch('organize.shutil.move', side_effect=OSError('permission denied')):
+            result = _do_transfer(src, dest, dry_run=False, move=True)
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
+# process_file — cache safety
+# ---------------------------------------------------------------------------
+
+def _make_ctx(tmp_path: Path, cache=None) -> ProcessContext:
+    if cache is None:
+        cache = MagicMock()
+        cache.get_processed.return_value = None
+        cache.get_hash.return_value = None
+    return ProcessContext(
+        dest_root=tmp_path / 'dest',
+        source_root=tmp_path / 'src',
+        tag=None,
+        cache=cache,
+        hash_index={},
+        claimed_dests=set(),
+        claimed_sidecars=set(),
+        dry_run=False,
+        move=False,
+    )
+
+
+class TestProcessFileSafety:
+    def test_does_not_cache_if_primary_transfer_fails(self, tmp_path):
+        src = tmp_path / 'src' / 'photo.jpg'
+        src.parent.mkdir(parents=True)
+        src.write_bytes(b'\xff\xd8\xff' + b'\x00' * 100)  # minimal jpg-ish bytes
+
+        cache = MagicMock()
+        cache.get_processed.return_value = None
+        cache.get_hash.return_value = None
+        ctx = _make_ctx(tmp_path, cache)
+
+        exif_data = {'DateTimeOriginal': '2026:03:10 09:00:00'}
+        with patch('organize._do_transfer', return_value=False):
+            result = process_file(src, FileCategory.PHOTO, exif_data, ctx)
+
+        assert result == 'ERROR'
+        cache.insert_processed.assert_not_called()
+        cache.insert_hash.assert_not_called()
+
+    def test_does_not_cache_if_sidecar_transfer_fails(self, tmp_path):
+        src = tmp_path / 'src' / 'photo.jpg'
+        xmp = tmp_path / 'src' / 'photo.xmp'
+        src.parent.mkdir(parents=True)
+        src.write_bytes(b'\xff\xd8\xff' + b'\x00' * 100)
+        xmp.write_text('<xmp>photo.jpg</xmp>')
+
+        cache = MagicMock()
+        cache.get_processed.return_value = None
+        cache.get_hash.return_value = None
+        ctx = _make_ctx(tmp_path, cache)
+
+        exif_data = {'DateTimeOriginal': '2026:03:10 09:00:00'}
+        # First call (primary) succeeds, second call (sidecar) fails
+        transfer_results = [True, False]
+        with patch('organize._do_transfer', side_effect=transfer_results):
+            result = process_file(src, FileCategory.PHOTO, exif_data, ctx)
+
+        assert result == 'ERROR'
+        cache.insert_processed.assert_not_called()
+        cache.insert_hash.assert_not_called()
+
+    def test_caches_after_successful_transfer(self, tmp_path):
+        src = tmp_path / 'src' / 'photo.jpg'
+        src.parent.mkdir(parents=True)
+        src.write_bytes(b'\xff\xd8\xff' + b'\x00' * 100)
+
+        cache = MagicMock()
+        cache.get_processed.return_value = None
+        cache.get_hash.return_value = None
+        ctx = _make_ctx(tmp_path, cache)
+
+        exif_data = {'DateTimeOriginal': '2026:03:10 09:00:00'}
+        with patch('organize._do_transfer', return_value=True):
+            result = process_file(src, FileCategory.PHOTO, exif_data, ctx)
+
+        assert result in ('COPY', 'MOVE')
+        cache.insert_processed.assert_called_once()
+        cache.insert_hash.assert_called_once()
 
 
 class TestAcquireLock:

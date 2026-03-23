@@ -190,13 +190,18 @@ def _candidate_dirs(library: Path, src: Path) -> list[Path]:
     return [library]
 
 
-def _move_to_dupes(src: Path, dupes_dir: Path) -> None:
+def _move_to_dupes(src: Path, dupes_dir: Path) -> bool:
+    """Move src into dupes_dir. Returns True on success, False on failure."""
     dest = dupes_dir / src.name
     dest.parent.mkdir(parents=True, exist_ok=True)
-    # Avoid collision
     if dest.exists():
         dest = dest.with_stem(dest.stem + '_dup')
-    shutil.move(str(src), dest)
+    try:
+        shutil.move(str(src), str(dest))
+        return True
+    except OSError as exc:
+        logging.getLogger(__name__).error('Failed to move dupe %s -> %s: %s', src, dest, exc)
+        return False
 
 
 # ---------------------------------------------------------------------------

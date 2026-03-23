@@ -466,9 +466,13 @@ def batch_exiftool(paths: list[Path], batch_size: int = DEFAULT_BATCH) -> dict[P
 # ---------------------------------------------------------------------------
 
 def update_xmp_ref(xmp_path: Path, old_name: str, new_name: str) -> None:
+    if old_name == new_name:
+        return
     try:
         text = xmp_path.read_text(encoding='utf-8', errors='replace')
-        xmp_path.write_text(text.replace(old_name, new_name), encoding='utf-8')
+        updated = text.replace(old_name, new_name)
+        if updated != text:
+            xmp_path.write_text(updated, encoding='utf-8')
     except OSError as exc:
         logging.warning('Could not update XMP reference in %s: %s', xmp_path, exc)
 
@@ -477,14 +481,21 @@ def update_xmp_ref(xmp_path: Path, old_name: str, new_name: str) -> None:
 # Transfer helpers (copy by default, move with --move)
 # ---------------------------------------------------------------------------
 
-def _do_transfer(src: Path, dest: Path, dry_run: bool, move: bool) -> None:
+def _do_transfer(src: Path, dest: Path, dry_run: bool, move: bool) -> bool:
+    """Copy or move src to dest. Returns True on success, False on failure."""
     if dry_run:
-        return
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    if move:
-        shutil.move(str(src), dest)
-    else:
-        shutil.copy2(str(src), dest)
+        return True
+    log = logging.getLogger(__name__)
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if move:
+            shutil.move(str(src), str(dest))
+        else:
+            shutil.copy2(str(src), str(dest))
+        return True
+    except OSError as exc:
+        log.error('Transfer failed %s -> %s: %s', src, dest, exc)
+        return False
 
 
 def move_to_review(path: Path, ctx: ProcessContext) -> None:
@@ -565,7 +576,8 @@ def process_file(path: Path, category: FileCategory, exif_data: dict, ctx: Proce
         fname     = build_filename(dt, tier, ctx.tag, _original_stem(path.stem), path.suffix.lstrip('.'))
         dupe_dest = dupe_dir / fname
         log.info('DUPE     %s -> %s  (original: %s)', path, dupe_dest, existing)
-        _do_transfer(path, dupe_dest, ctx.dry_run, ctx.move)
+        if not _do_transfer(path, dupe_dest, ctx.dry_run, ctx.move):
+            return 'ERROR'
         for sc, sc_ext in ((xmp_path, '.xmp'), (pp3_path, '.pp3'), (live_mov, '.mov')):
             if sc:
                 sc_dest = dupe_dest.with_suffix(sc_ext)
@@ -602,13 +614,14 @@ def process_file(path: Path, category: FileCategory, exif_data: dict, ctx: Proce
         if not path.exists():
             log.warning('SKIP     source vanished before %s: %s', action.lower(), path)
             return 'SKIP'
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        _do_transfer(path, dest, dry_run=False, move=ctx.move)
+        if not _do_transfer(path, dest, dry_run=False, move=ctx.move):
+            return 'ERROR'
         for sc, sc_dest, sc_ext in sidecars:
             if sc_ext == '.xmp':
                 update_xmp_ref(sc, path.name, dest.name)
-            sc_dest.parent.mkdir(parents=True, exist_ok=True)
-            _do_transfer(sc, sc_dest, dry_run=False, move=ctx.move)
+            if not _do_transfer(sc, sc_dest, dry_run=False, move=ctx.move):
+                log.error('Sidecar transfer failed — not caching %s so it will retry next run', path)
+                return 'ERROR'
         ctx.cache.insert_processed(real, fp, dest, content_hash)
         ctx.cache.insert_hash(content_hash, dest)
 
