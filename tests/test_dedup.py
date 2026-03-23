@@ -156,10 +156,11 @@ class TestCandidateDirs:
         dirs  = _candidate_dirs(tmp_path, src)
         assert dirs[0] == tmp_path / '2023' / '06'
 
-    def test_undated_filename_returns_library_root(self, tmp_path):
+    def test_undated_filename_returns_empty(self, tmp_path):
+        """Non-date-prefixed files skip pixel scan entirely (SHA covers exact copies)."""
         src  = tmp_path / 'IMG_0042.jpg'
         dirs = _candidate_dirs(tmp_path, src)
-        assert dirs[-1] == tmp_path
+        assert dirs == []
 
 
 # ---------------------------------------------------------------------------
@@ -182,13 +183,18 @@ class TestScan:
         assert len(results.get('unique', [])) == 0
 
     def test_finds_pixel_duplicate_with_different_exif(self, tmp_path):
-        """A file with EXIF in library vs no-EXIF in source → pixel match."""
+        """A file with EXIF in library vs no-EXIF in source → pixel match.
+
+        The source file must have a YYYYMM date prefix so that _candidate_dirs
+        narrows the pixel scan to the correct library subdirectory.
+        """
         src_dir = tmp_path / 'source'
         lib_dir = tmp_path / 'library'
         src_dir.mkdir(); lib_dir.mkdir()
 
         make_jpeg_with_exif(lib_dir / 'photo_with_exif.jpg')
-        make_jpeg(src_dir / 'photo_no_exif.jpg')  # same pixels, no EXIF
+        # Date-prefixed so _candidate_dirs returns candidate dirs for the scan
+        make_jpeg(src_dir / '20230615_photo_no_exif.jpg')  # same pixels, no EXIF
 
         results = scan(src_dir, lib_dir, dry_run=True)
         assert len(results.get('dupe_pixel', [])) == 1

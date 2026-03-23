@@ -23,6 +23,7 @@ from organize import (
     build_filename,
     classify,
     dest_dir_for,
+    fingerprint,
     process_file,
     unique_dest,
     update_xmp_ref,
@@ -522,6 +523,62 @@ class TestProcessFileSafety:
         assert result in ('COPY', 'MOVE')
         cache.insert_processed.assert_called_once()
         cache.insert_hash.assert_called_once()
+
+
+class TestProcessFilePaths:
+    """Test the early-return branches in process_file."""
+
+    def test_returns_cached_when_fingerprint_and_dest_match(self, tmp_path):
+        src = tmp_path / 'src' / 'photo.jpg'
+        src.parent.mkdir(parents=True)
+        src.write_bytes(b'\xff\xd8\xff' + b'\x00' * 100)
+        dest = tmp_path / 'dest' / 'photo_out.jpg'
+        dest.parent.mkdir(parents=True)
+        dest.write_bytes(b'data')  # dest must exist for cache to be valid
+
+        fp = fingerprint(src)
+        cache = MagicMock()
+        cache.get_processed.return_value = (fp, str(dest), None)
+        cache.get_hash.return_value = None
+        ctx = _make_ctx(tmp_path, cache)
+
+        result = process_file(src, FileCategory.PHOTO, {}, ctx)
+        assert result == 'CACHED'
+
+    def test_returns_dupe_when_content_hash_known(self, tmp_path):
+        src = tmp_path / 'src' / 'photo.jpg'
+        src.parent.mkdir(parents=True)
+        src.write_bytes(b'\xff\xd8\xff' + b'\x00' * 100)
+
+        # A different existing file acts as the "original" in the library
+        original = tmp_path / 'dest' / '2026' / '03' / 'photo_orig.jpg'
+        original.parent.mkdir(parents=True)
+        original.write_bytes(b'\xff\xd8\xff' + b'\x00' * 100)
+
+        cache = MagicMock()
+        cache.get_processed.return_value = None
+        cache.get_hash.return_value = str(original)
+        ctx = _make_ctx(tmp_path, cache)
+        ctx.hash_index = {MagicMock(): str(original)}  # non-empty — triggers dupe branch via get_hash
+
+        exif_data = {'DateTimeOriginal': '2026:03:10 09:00:00'}
+        with patch('organize._do_transfer', return_value=True):
+            result = process_file(src, FileCategory.PHOTO, exif_data, ctx)
+        assert result == 'DUPE'
+
+    def test_returns_no_date_when_get_date_returns_none(self, tmp_path):
+        src = tmp_path / 'src' / 'photo.jpg'
+        src.parent.mkdir(parents=True)
+        src.write_bytes(b'\xff\xd8\xff' + b'\x00' * 100)
+
+        cache = MagicMock()
+        cache.get_processed.return_value = None
+        cache.get_hash.return_value = None
+        ctx = _make_ctx(tmp_path, cache)
+
+        with patch('organize.get_date', return_value=None):
+            result = process_file(src, FileCategory.PHOTO, {}, ctx)
+        assert result == 'NO_DATE'
 
 
 class TestAcquireLock:

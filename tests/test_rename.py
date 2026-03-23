@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from shoot import check_already_renamed, process_file
+from shoot import check_already_renamed, parse_args, process_file
 from photo import ALREADY_RENAMED_RE, find_xmp, rename_xmp
 
 
@@ -227,3 +227,24 @@ class TestProcessFile:
         with patch('shoot.exifread.process_file', return_value=self._make_tags()):
             process_file(img, tag='vacation', dry_run=True)
         assert xmp.exists()  # not touched in dry run
+
+
+# ---------------------------------------------------------------------------
+# parse_args
+# ---------------------------------------------------------------------------
+
+class TestParseArgs:
+    def test_defaults(self):
+        args = parse_args(['mydir', 'mytag'])
+        assert args.directory == 'mydir'
+        assert args.tag == 'mytag'
+        assert args.execute is False
+        assert args.force is False
+
+    def test_execute_flag(self):
+        args = parse_args(['mydir', 'mytag', '-x'])
+        assert args.execute is True
+
+    def test_force_flag(self):
+        args = parse_args(['mydir', 'mytag', '--force'])
+        assert args.force is True

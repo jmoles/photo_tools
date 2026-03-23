@@ -11,7 +11,10 @@ import pytest
 from ingest import (
     IngestDB,
     Shoot,
+    _best_date,
+    _pick_card,
     _unique_dest,
+    build_shoots,
     cluster_by_gap,
     copy_shoot,
     find_cards,
@@ -424,3 +427,104 @@ class TestUniqueDest:
         (tmp_path / 'photo.jpg').write_bytes(b'x')
         (tmp_path / 'photo_1.jpg').write_bytes(b'x')
         assert _unique_dest(tmp_path, 'photo.jpg') == tmp_path / 'photo_2.jpg'
+
+
+# ---------------------------------------------------------------------------
+# _pick_card
+# ---------------------------------------------------------------------------
+
+class TestPickCard:
+    def test_single_card_returned_without_prompt(self):
+        card = Path('/Volumes/FUJIFILM')
+        called = []
+        result = _pick_card([card], prompter=lambda _: called.append(1) or '1')
+        assert result == card
+        assert called == []  # prompter never invoked for single card
+
+    def test_multiple_cards_selects_by_number(self):
+        cards = [Path('/Volumes/A'), Path('/Volumes/B')]
+        result = _pick_card(cards, prompter=lambda _: '2')
+        assert result == cards[1]
+
+    def test_empty_input_defaults_to_first(self):
+        cards = [Path('/Volumes/A'), Path('/Volumes/B')]
+        result = _pick_card(cards, prompter=lambda _: '')
+        assert result == cards[0]
+
+    def test_invalid_number_returns_none(self):
+        cards = [Path('/Volumes/A'), Path('/Volumes/B')]
+        assert _pick_card(cards, prompter=lambda _: '9') is None
+
+    def test_non_numeric_returns_none(self):
+        cards = [Path('/Volumes/A'), Path('/Volumes/B')]
+        assert _pick_card(cards, prompter=lambda _: 'foo') is None
+
+
+# ---------------------------------------------------------------------------
+# _best_date
+# ---------------------------------------------------------------------------
+
+class TestBestDate:
+    def test_prefers_datetimeoriginal(self, tmp_path):
+        f = tmp_path / 'photo.jpg'
+        f.write_bytes(b'x')
+        exif = {'DateTimeOriginal': '2026:03:10 09:14:00', 'ModifyDate': '2020:01:01 00:00:00'}
+        dt = _best_date(f, exif)
+        assert dt is not None
+        assert dt.year == 2026
+        assert dt.month == 3
+
+    def test_falls_back_to_mtime(self, tmp_path):
+        f = tmp_path / 'photo.jpg'
+        f.write_bytes(b'x')
+        dt = _best_date(f, {})
+        assert dt is not None  # mtime always available for a real file
+
+    def test_returns_none_for_missing_file(self, tmp_path):
+        f = tmp_path / 'nonexistent.jpg'
+        assert _best_date(f, {}) is None
+
+
+# ---------------------------------------------------------------------------
+# build_shoots
+# ---------------------------------------------------------------------------
+
+class TestBuildShoots:
+    _DT = datetime.datetime(2026, 3, 10, 9, 14)
+
+    def test_empty_clusters_returns_empty(self):
+        assert build_shoots([], {}) == []
+
+    def test_undatable_cluster_excluded(self, tmp_path):
+        """A cluster with no datable files must be silently dropped."""
+        f = tmp_path / 'photo.jpg'
+        f.write_bytes(b'x')
+        # No EXIF and file doesn't exist → _best_date returns None
+        shoots = build_shoots([[Path('/nonexistent/ghost.jpg')]], {})
+        assert shoots == []
+
+    def test_single_cluster_becomes_shoot(self, tmp_path):
+        f = tmp_path / 'photo.jpg'
+        f.write_bytes(b'x')
+        exif_map = {f: {'DateTimeOriginal': '2026:03:10 09:14:00'}}
+        shoots = build_shoots([[f]], exif_map)
+        assert len(shoots) == 1
+        assert shoots[0].start == datetime.datetime(2026, 3, 10, 9, 14, 0)
+
+    def test_geo_hint_extracted(self, tmp_path):
+        f = tmp_path / 'photo.jpg'
+        f.write_bytes(b'x')
+        exif_map = {f: {
+            'DateTimeOriginal':    '2026:03:10 09:14:00',
+            'GeolocationCity':    'Osaka',
+            'GeolocationCountry': 'Japan',
+        }}
+        shoots = build_shoots([[f]], exif_map)
+        assert shoots[0].geo_hint == 'Osaka, Japan'
+
+    def test_no_geo_hint_when_absent(self, tmp_path):
+        f = tmp_path / 'photo.jpg'
+        f.write_bytes(b'x')
+        exif_map = {f: {'DateTimeOriginal': '2026:03:10 09:14:00'}}
+        shoots = build_shoots([[f]], exif_map)
+        assert shoots[0].geo_hint is None

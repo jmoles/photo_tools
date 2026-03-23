@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import sqlite3
 from pathlib import Path
@@ -18,6 +19,7 @@ from organize import (
     FileCategory,
     ProcessContext,
     _date_from_xmp,
+    batch_exiftool,
     build_filename,
     get_date,
     main,
@@ -51,7 +53,7 @@ def _run_main(src: Path, dst: Path, tmp_path: Path, extra_args: list[str] | None
     from unittest.mock import patch
 
     argv = [
-        'consolidate.py',
+        'organize.py',
         '--source', str(src),
         '--dest',   str(dst),
         '--hash-cache', str(tmp_path / 'cache.db'),
@@ -75,7 +77,6 @@ class TestTier1Exif:
         img = make_jpeg_with_exif(src / 'IMG_0001.jpg', '2023:06:15 10:30:22')
         ctx = _make_ctx(src, dst, tmp_path)
         # Use get_date directly
-        from organize import batch_exiftool
         exif = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -87,7 +88,6 @@ class TestTier1Exif:
     def test_fujifilm_raf(self, src, dst, tmp_path):
         img = src / FUJIFILM_RAF.name
         shutil.copy2(FUJIFILM_RAF, img)
-        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -97,7 +97,6 @@ class TestTier1Exif:
     def test_ricoh_dng(self, src, dst, tmp_path):
         img = src / RICOH_DNG.name
         shutil.copy2(RICOH_DNG, img)
-        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -107,7 +106,6 @@ class TestTier1Exif:
     def test_iphone_heic(self, src, dst, tmp_path):
         img = src / IPHONE_HEIC.name
         shutil.copy2(IPHONE_HEIC, img)
-        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -116,7 +114,6 @@ class TestTier1Exif:
     def test_iphone_proraw_dng(self, src, dst, tmp_path):
         img = src / IPHONE_PRORAW.name
         shutil.copy2(IPHONE_PRORAW, img)
-        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -125,7 +122,6 @@ class TestTier1Exif:
     def test_canon_cr2(self, src, dst, tmp_path):
         img = src / CANON_CR2.name
         shutil.copy2(CANON_CR2, img)
-        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
@@ -278,8 +274,6 @@ class TestSidecars:
         assert len(pp3s) == 1
 
     def test_live_photo_mov_travels_with_heic(self, src, dst, tmp_path):
-        if not IPHONE_HEIC.exists():
-            pytest.skip('iPhone HEIC sample not available')
         img = src / IPHONE_HEIC.name
         shutil.copy2(IPHONE_HEIC, img)
         mov = img.with_suffix('.mov')
@@ -406,7 +400,6 @@ class TestAlreadyRenamed:
         """File named 20200101_…jpg but EXIF says 2023 → organised under 2023."""
         img = make_jpeg_with_exif(src / '20200101_000000_old_photo.jpg', '2023:06:15 10:30:00')
         ctx = _make_ctx(src, dst, tmp_path)
-        from organize import batch_exiftool
         exif   = batch_exiftool([img])
         result = get_date(img, exif.get(img, {}), None)
         assert result is not None
