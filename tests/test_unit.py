@@ -22,6 +22,7 @@ from organize import (
     classify,
     dest_dir_for,
     unique_dest,
+    walk_source,
     DateResult,
 )
 from photo import find_xmp, parse_exif_dt as _parse_exif_dt
@@ -347,6 +348,30 @@ class TestFindXmp:
 # ---------------------------------------------------------------------------
 # _acquire_lock — concurrent-run prevention
 # ---------------------------------------------------------------------------
+
+class TestWalkSource:
+    def test_skips_rejected_folder(self, tmp_path: Path):
+        keep = tmp_path / 'shoot' / '20260310_090000_liam_dscf0001.jpg'
+        reject = tmp_path / 'shoot' / '_Rejected' / '20260310_090000_liam_dscf0002.jpg'
+        keep.parent.mkdir(parents=True)
+        reject.parent.mkdir(parents=True)
+        keep.write_bytes(b'x')
+        reject.write_bytes(b'x')
+        results = list(walk_source(tmp_path))
+        assert keep in results
+        assert reject not in results
+
+    def test_walks_normal_subdirs(self, tmp_path: Path):
+        f1 = tmp_path / 'a' / 'photo.jpg'
+        f2 = tmp_path / 'b' / 'photo.jpg'
+        f1.parent.mkdir()
+        f2.parent.mkdir()
+        f1.write_bytes(b'x')
+        f2.write_bytes(b'x')
+        results = list(walk_source(tmp_path))
+        assert f1 in results
+        assert f2 in results
+
 
 class TestAcquireLock:
     def test_acquires_when_free(self, tmp_path):

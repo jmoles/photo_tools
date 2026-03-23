@@ -252,7 +252,7 @@ def walk_source(source_root: Path) -> Iterator[Path]:
             dirnames.clear()   # prevent recursion into already-visited dirs
             continue
         seen_dirs.add(real_dir)
-        dirnames.sort()        # deterministic order
+        dirnames[:] = [d for d in sorted(dirnames) if d != '_Rejected']
         for name in sorted(filenames):
             path      = dirpath / name
             real_path = path.resolve()
