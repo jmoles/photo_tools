@@ -162,6 +162,7 @@ class ProcessContext:
     claimed_dests:    set[str]
     claimed_sidecars: set[Path]
     dry_run:          bool
+    move:             bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -473,14 +474,17 @@ def update_xmp_ref(xmp_path: Path, old_name: str, new_name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Move helpers
+# Transfer helpers (copy by default, move with --move)
 # ---------------------------------------------------------------------------
 
-def _do_move(src: Path, dest: Path, dry_run: bool) -> None:
+def _do_transfer(src: Path, dest: Path, dry_run: bool, move: bool) -> None:
     if dry_run:
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(src), dest)
+    if move:
+        shutil.move(str(src), dest)
+    else:
+        shutil.copy2(str(src), dest)
 
 
 def move_to_review(path: Path, ctx: ProcessContext) -> None:
@@ -490,7 +494,7 @@ def move_to_review(path: Path, ctx: ProcessContext) -> None:
         rel = Path(path.name)
     dest = ctx.dest_root / '_review' / rel
     logging.info('REVIEW   %s -> %s', path, dest)
-    _do_move(path, dest, ctx.dry_run)
+    _do_transfer(path, dest, ctx.dry_run, ctx.move)
 
 
 # ---------------------------------------------------------------------------
@@ -561,14 +565,14 @@ def process_file(path: Path, category: FileCategory, exif_data: dict, ctx: Proce
         fname     = build_filename(dt, tier, ctx.tag, _original_stem(path.stem), path.suffix.lstrip('.'))
         dupe_dest = dupe_dir / fname
         log.info('DUPE     %s -> %s  (original: %s)', path, dupe_dest, existing)
-        _do_move(path, dupe_dest, ctx.dry_run)
+        _do_transfer(path, dupe_dest, ctx.dry_run, ctx.move)
         for sc, sc_ext in ((xmp_path, '.xmp'), (pp3_path, '.pp3'), (live_mov, '.mov')):
             if sc:
                 sc_dest = dupe_dest.with_suffix(sc_ext)
                 if sc_ext == '.xmp' and not ctx.dry_run:
                     update_xmp_ref(sc, path.name, dupe_dest.name)
                 log.info('  SIDECAR  %s -> %s', sc, sc_dest)
-                _do_move(sc, sc_dest, ctx.dry_run)
+                _do_transfer(sc, sc_dest, ctx.dry_run, ctx.move)
         return 'DUPE'
 
     # Date extraction
@@ -584,7 +588,8 @@ def process_file(path: Path, category: FileCategory, exif_data: dict, ctx: Proce
     dest     = unique_dest(d_dir, fname, content_hash, ctx.claimed_dests)
 
     ctx.claimed_dests.add(str(dest))
-    log.info('MOVE     tier=%d %s -> %s', date_result.tier.value, path, dest)
+    action = 'MOVE' if ctx.move else 'COPY'
+    log.info('%s     tier=%d %s -> %s', action, date_result.tier.value, path, dest)
 
     sidecars: list[tuple[Path, Path, str]] = []
     for sc, sc_ext in ((xmp_path, '.xmp'), (pp3_path, '.pp3'), (live_mov, '.mov')):
@@ -595,20 +600,20 @@ def process_file(path: Path, category: FileCategory, exif_data: dict, ctx: Proce
 
     if not ctx.dry_run:
         if not path.exists():
-            log.warning('SKIP     source vanished before move: %s', path)
+            log.warning('SKIP     source vanished before %s: %s', action.lower(), path)
             return 'SKIP'
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(path), dest)
+        _do_transfer(path, dest, dry_run=False, move=ctx.move)
         for sc, sc_dest, sc_ext in sidecars:
             if sc_ext == '.xmp':
                 update_xmp_ref(sc, path.name, dest.name)
             sc_dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(sc), sc_dest)
+            _do_transfer(sc, sc_dest, dry_run=False, move=ctx.move)
         ctx.cache.insert_processed(real, fp, dest, content_hash)
         ctx.cache.insert_hash(content_hash, dest)
 
     ctx.hash_index[content_hash] = str(dest)
-    return 'MOVE'
+    return action
 
 
 # ---------------------------------------------------------------------------
@@ -681,6 +686,8 @@ def parse_args() -> argparse.Namespace:
                    help='Optional tag embedded in filenames')
     p.add_argument('--execute',    action='store_true',
                    help='Apply changes (default: dry-run)')
+    p.add_argument('--move',       action='store_true',
+                   help='Move files instead of copying (default: copy)')
     p.add_argument('--hash-cache',
                    default=paths.get('hash_cache', DEFAULT_CACHE),
                    help='SQLite cache path (default: %(default)s)')
@@ -776,7 +783,7 @@ def main() -> None:
         dest_root=dest_root, source_root=source_root, tag=tag,
         cache=cache, hash_index=hash_index,
         claimed_dests=claimed_dests, claimed_sidecars=claimed_sidecars,
-        dry_run=dry_run,
+        dry_run=dry_run, move=args.move,
     )
 
     # --- Process photos ---

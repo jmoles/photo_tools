@@ -183,10 +183,10 @@ class TestTier3Filename:
         img = make_jpeg_no_exif(src / '20191225_photo.jpg')
         ctx = _make_ctx(src, dst, tmp_path)
         action = process_file(img, FileCategory.PHOTO, {}, ctx)
-        assert action == 'MOVE'
-        moved = list((dst / '2019' / '12').glob('*.jpg'))
-        assert len(moved) == 1
-        assert 'fndate' in moved[0].name
+        assert action in ('COPY', 'MOVE')
+        copied = list((dst / '2019' / '12').glob('*.jpg'))
+        assert len(copied) == 1
+        assert 'fndate' in copied[0].name
 
 
 # ---------------------------------------------------------------------------
