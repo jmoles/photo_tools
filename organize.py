@@ -707,7 +707,7 @@ def main() -> None:
     log = logging.getLogger(__name__)
 
     # Prevent concurrent runs from racing each other
-    lock_path = Path(args.hash_cache).with_suffix('.lock')
+    lock_path = Path(args.hash_cache).expanduser().with_suffix('.lock')
     if not _acquire_lock(lock_path):
         log.error('Another consolidate.py is already running (lock: %s). Exiting.', lock_path)
         sys.exit(1)
@@ -719,8 +719,8 @@ def main() -> None:
         )
         sys.exit(1)
 
-    source_root = Path(args.source)
-    dest_root   = Path(args.dest)
+    source_root = Path(args.source).expanduser()
+    dest_root   = Path(args.dest).expanduser()
     tag         = args.tag.lower() if args.tag else None
 
     if dry_run:
@@ -730,7 +730,7 @@ def main() -> None:
         log.error('Source directory does not exist: %s', source_root)
         sys.exit(1)
 
-    cache      = CacheDB(Path(args.hash_cache))
+    cache      = CacheDB(Path(args.hash_cache).expanduser())
     hash_index = cache.load_hash_index()
 
     # --- Walk and classify ---

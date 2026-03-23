@@ -72,12 +72,10 @@ class TestReadExif:
             assert isinstance(city, str)
             assert len(city) > 0
 
-    @pytest.mark.skipif(not FUJIFILM_RAF.exists(), reason='RAF sample not present (run git lfs pull)')
     def test_reads_fujifilm_raf(self):
         result = read_exif([FUJIFILM_RAF])
         assert FUJIFILM_RAF in result
 
-    @pytest.mark.skipif(not RICOH_DNG.exists(), reason='DNG sample not present (run git lfs pull)')
     def test_reads_ricoh_dng(self):
         result = read_exif([RICOH_DNG])
         assert RICOH_DNG in result
