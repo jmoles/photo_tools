@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import datetime
-import shutil
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -26,6 +25,7 @@ from organize import (
     dest_dir_for,
     process_file,
     unique_dest,
+    update_xmp_ref,
     walk_source,
     DateResult,
 )
@@ -350,7 +350,7 @@ class TestFindXmp:
 
 
 # ---------------------------------------------------------------------------
-# _acquire_lock — concurrent-run prevention
+# walk_source — directory traversal
 # ---------------------------------------------------------------------------
 
 class TestWalkSource:
@@ -375,6 +375,35 @@ class TestWalkSource:
         results = list(walk_source(tmp_path))
         assert f1 in results
         assert f2 in results
+
+
+# ---------------------------------------------------------------------------
+# update_xmp_ref — guarded in-place update
+# ---------------------------------------------------------------------------
+
+class TestUpdateXmpRef:
+    def test_updates_reference(self, tmp_path):
+        xmp = tmp_path / 'photo.xmp'
+        xmp.write_text('<xmp>photo.jpg</xmp>', encoding='utf-8')
+        update_xmp_ref(xmp, 'photo.jpg', 'renamed.jpg')
+        assert 'renamed.jpg' in xmp.read_text()
+        assert 'photo.jpg' not in xmp.read_text()
+
+    def test_no_op_when_names_equal(self, tmp_path):
+        """Early return when old == new — file must never be opened."""
+        xmp = tmp_path / 'photo.xmp'
+        xmp.write_text('<xmp>photo.jpg</xmp>', encoding='utf-8')
+        with patch('pathlib.Path.write_text') as mock_write:
+            update_xmp_ref(xmp, 'photo.jpg', 'photo.jpg')
+        mock_write.assert_not_called()
+
+    def test_no_write_when_reference_not_found(self, tmp_path):
+        """If old_name doesn't appear in the content, skip the write."""
+        xmp = tmp_path / 'photo.xmp'
+        xmp.write_text('<xmp>other.jpg</xmp>', encoding='utf-8')
+        with patch('pathlib.Path.write_text') as mock_write:
+            update_xmp_ref(xmp, 'photo.jpg', 'renamed.jpg')
+        mock_write.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -403,14 +432,6 @@ class TestDoTransfer:
         with patch('organize.shutil.copy2', side_effect=OSError('disk full')):
             result = _do_transfer(src, dest, dry_run=False, move=False)
         assert result is False
-
-    def test_does_not_raise_on_copy_failure(self, tmp_path):
-        src = tmp_path / 'src.jpg'
-        src.write_bytes(b'data')
-        dest = tmp_path / 'out.jpg'
-        with patch('organize.shutil.copy2', side_effect=OSError('disk full')):
-            # must not propagate the OSError
-            _do_transfer(src, dest, dry_run=False, move=False)
 
     def test_returns_false_on_move_failure(self, tmp_path):
         src = tmp_path / 'src.jpg'

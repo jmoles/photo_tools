@@ -584,7 +584,8 @@ def process_file(path: Path, category: FileCategory, exif_data: dict, ctx: Proce
                 if sc_ext == '.xmp' and not ctx.dry_run:
                     update_xmp_ref(sc, path.name, dupe_dest.name)
                 log.info('  SIDECAR  %s -> %s', sc, sc_dest)
-                _do_transfer(sc, sc_dest, ctx.dry_run, ctx.move)
+                if not _do_transfer(sc, sc_dest, ctx.dry_run, ctx.move):
+                    log.warning('Dupe sidecar transfer failed: %s', sc)
         return 'DUPE'
 
     # Date extraction
@@ -729,7 +730,7 @@ def main() -> None:
     # Prevent concurrent runs from racing each other
     lock_path = Path(args.hash_cache).expanduser().with_suffix('.lock')
     if not _acquire_lock(lock_path):
-        log.error('Another consolidate.py is already running (lock: %s). Exiting.', lock_path)
+        log.error('Another organize.py is already running (lock: %s). Exiting.', lock_path)
         sys.exit(1)
 
     if not args.source or not args.dest:

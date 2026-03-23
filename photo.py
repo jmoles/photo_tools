@@ -49,10 +49,10 @@ def rename_xmp(xmp_path: Path, new_xmp_path: Path, old_img_name: str, new_img_na
     Writes the new file before deleting the old one. Cleans up any partial
     write on failure so the original is never lost.
     """
-    content = xmp_path.read_text()
+    content = xmp_path.read_text(encoding='utf-8', errors='replace')
     updated = content.replace(old_img_name, new_img_name)
     try:
-        new_xmp_path.write_text(updated)
+        new_xmp_path.write_text(updated, encoding='utf-8')
     except OSError:
         new_xmp_path.unlink(missing_ok=True)  # remove any partial write
         raise

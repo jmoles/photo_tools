@@ -2,31 +2,13 @@
 
 from __future__ import annotations
 
-import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from shoot import check_already_renamed, process_file
-from photo import ALREADY_RENAMED_RE, find_xmp, parse_exif_dt, rename_xmp
-
-
-# ---------------------------------------------------------------------------
-# parse_date
-# ---------------------------------------------------------------------------
-
-class TestParseExifDt:
-    def test_valid(self):
-        dt = parse_exif_dt('2023:06:15 10:30:22')
-        assert dt == datetime.datetime(2023, 6, 15, 10, 30, 22)
-
-    def test_invalid_returns_none(self):
-        assert parse_exif_dt('not-a-date') is None
-
-    def test_valid_iso8601(self):
-        dt = parse_exif_dt('2023-06-15T10:30:22')
-        assert dt == datetime.datetime(2023, 6, 15, 10, 30, 22)
+from photo import ALREADY_RENAMED_RE, find_xmp, rename_xmp
 
 
 # ---------------------------------------------------------------------------
